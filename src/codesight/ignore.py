@@ -51,11 +51,15 @@ def should_ignore(path: Path, config: dict[str, Any], gitignore_spec: pathspec.P
     """Check if a file should be ignored based on configuration and gitignore patterns."""
     str_path = str(path)
 
-    # Always include certain files
+    # Always include certain files, even if they start with a dot
     if str_path in config.get("include_files", []):
         return False
 
-    # Check exclude patterns first
+    # Check if it's a hidden file (starts with .)
+    if path.name.startswith(".") and str_path not in config.get("include_files", []):
+        return True
+
+    # Check exclude patterns
     if any(pattern in str_path for pattern in config.get("exclude_files", [])):
         return True
 

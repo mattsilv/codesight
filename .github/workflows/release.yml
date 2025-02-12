@@ -39,7 +39,7 @@ jobs:
 
       - name: Run linting
         run: |
-          poetry run ruff .
+          poetry run ruff check .
           poetry run black --check .
           poetry run mypy src tests
 
