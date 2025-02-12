@@ -8,6 +8,8 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # Needed for creating releases
     steps:
       - uses: actions/checkout@v4
 
@@ -24,20 +26,40 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Clean environment
+        run: |
+          rm -rf codesight/*.py  # Remove any legacy files
+          rm -rf build/ dist/ *.egg-info/  # Clean build artifacts
+          find . -type d -name __pycache__ -exec rm -rf {} +
+
       - name: Install dependencies
         run: |
           poetry install
           poetry run pip list  # Log installed packages for debugging
 
-      - name: Run tests
+      - name: Run linting
         run: |
-          poetry run pytest tests/
+          poetry run ruff .
+          poetry run black --check .
+          poetry run mypy src tests
+
+      - name: Run tests with coverage
+        run: |
+          poetry run pytest --cov=src/codesight --cov-branch --cov-report=xml --cov-report=term-missing tests/
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true
 
       - name: Build package
         run: poetry build
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           files: |
             dist/*.whl
