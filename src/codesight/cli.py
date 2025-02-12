@@ -9,8 +9,7 @@ import toml
 
 from . import __version__
 from .collate import gather_and_collate
-from .config import auto_detect_project_type as detect_project_type
-from .config import load_config
+from .config import auto_detect_project_type, load_config
 from .reporting import copy_to_clipboard_if_requested, display_file_stats
 
 logger = logging.getLogger(__name__)
@@ -106,10 +105,10 @@ def main(
 
     try:
         root_folder = Path.cwd()
-        project_type = type or detect_project_type(root_folder)
+        project_type = type or auto_detect_project_type(root_folder)
         config = load_config(project_type, user_config)
 
-        logger.info("Processing %s project at %s", project_type or "unknown", root_folder)
+        logger.info("Processing %s project at %s", project_type, root_folder)
         collated, token_count, file_stats = gather_and_collate(
             root_folder, cast(dict[str, Any], config)
         )
