@@ -1,4 +1,4 @@
 # Custom configuration for analyzing CodeSight's source code
 include_extensions = [".py"]  # Include all Python files
 truncate_py_literals = 10  # Show more elements in literals for better readability
-include_files = []  # No explicit file inclusions 
+include_files = [".flake8"]  # Include flake8 configuration
