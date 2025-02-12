@@ -53,6 +53,10 @@ codesight = "codesight.cli:main"
 python_version = "3.12"
 strict = true
 
+[[tool.mypy.overrides]]
+module = "pyperclip"
+ignore_missing_imports = true
+
 [tool.black]
 line-length = 100
 target-version = ['py39']

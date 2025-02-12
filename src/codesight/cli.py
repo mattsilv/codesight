@@ -65,29 +65,29 @@ def analyze_command(
         sys.exit(1)
 
 
-@click.command()  # type: ignore[misc]
+@click.command()
 @click.argument(
     "path",
     type=click.Path(exists=True, path_type=Path),
     default=Path("."),
-)  # type: ignore[misc]
+)
 @click.option(
     "--config",
     "-c",
     type=click.Path(exists=True, path_type=Path),
     help="Path to configuration file",
-)  # type: ignore[misc]
+)
 @click.option(
     "--output",
     "-o",
     type=click.Path(path_type=Path),
     help="Path to output file",
-)  # type: ignore[misc]
+)
 @click.option(
     "--clipboard",
     is_flag=True,
     help="Copy output to clipboard",
-)  # type: ignore[misc]
+)
 def main(
     path: Path,
     config: Optional[Path] = None,

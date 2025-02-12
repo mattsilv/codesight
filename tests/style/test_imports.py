@@ -128,11 +128,12 @@ def test_import_order() -> None:
 
         # Check that standard library imports come first
         for module in module_imports:
-            if "." in module:
+            mod_str = str(module)
+            if "." in mod_str:
                 assert any(
-                    module.startswith(stdlib)
+                    mod_str.startswith(stdlib)
                     for stdlib in ["os", "sys", "pathlib", "logging", "typing"]
-                ), f"Third-party import {module} before standard library imports in {file_path}"
+                ), f"Third-party import {mod_str} before standard library imports in {file_path}"
 
 
 def test_import_sorting() -> None:
