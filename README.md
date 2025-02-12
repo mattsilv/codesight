@@ -1,6 +1,7 @@
 # CodeSight
 
 [![CI](https://github.com/mattsilv/codesight/actions/workflows/ci.yml/badge.svg)](https://github.com/mattsilv/codesight/actions/workflows/ci.yml)
+[![PyPI version](https://badge.fury.io/py/codesight.svg)](https://badge.fury.io/py/codesight)
 [![Python Version](https://img.shields.io/pypi/pyversions/codesight)](https://pypi.org/project/codesight/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
