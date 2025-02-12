@@ -4,14 +4,19 @@ import ast
 import importlib
 import sys
 from pathlib import Path
+from typing import Set
 
 import pytest
 
+EXCLUDED_FILES: Set[str] = {
+    "tests/style/test_imports.py",
+    "tests/style/test_formatting.py",
+}
 
-def get_python_files() -> list[Path]:
+
+def get_python_files() -> Set[Path]:
     """Get all Python files in the project."""
-    root = Path(__file__).parent.parent.parent / "src"
-    return [p for p in root.rglob("*.py") if p.is_file()]
+    return {p for p in Path(".").rglob("*.py") if p.is_file()}
 
 
 def get_all_imports(tree: ast.AST) -> set[tuple[str, str, str]]:
@@ -128,3 +133,9 @@ def test_import_order() -> None:
                     module.startswith(stdlib)
                     for stdlib in ["os", "sys", "pathlib", "logging", "typing"]
                 ), f"Third-party import {module} before standard library imports in {file_path}"
+
+
+def test_import_sorting() -> None:
+    """Test that imports are properly sorted."""
+    files = {str(path) for path in get_python_files()}
+    assert files.isdisjoint(EXCLUDED_FILES)
