@@ -24,7 +24,7 @@ packages = [{include = "codesight", from = "src"}]
 [tool.poetry.dependencies]
 python = ">=3.10,<3.14"
 click = "^8.1.3"
-pyperclip = "^1.8.2"
+pyperclip = "^1.9.0"
 tiktoken = "^0.8.0"
 toml = "^0.10.2"
 rich = "^13.7.0"
@@ -39,7 +39,6 @@ flake8-docstrings = "^1.7.0"
 isort = "^5.13.2"
 types-toml = "^0.10.8"
 types-PyYAML = "^6.0.12"
-types-pyperclip = "^1.8.11"
 pytest = "^8.0.2"
 
 [build-system]
