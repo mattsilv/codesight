@@ -60,25 +60,25 @@ codesight
 Force a specific project type:
 
 ```bash
-codesight --type python
+codesight -t python
 ```
 
 Use custom configuration:
 
 ```bash
-codesight --user-config .codesight_config.toml
+codesight -u .codesight_config.toml
 ```
 
 Copy output to clipboard:
 
 ```bash
-codesight --copy-to-clipboard
+codesight -c
 ```
 
 Get detailed logging:
 
 ```bash
-codesight --verbose
+codesight -v
 ```
 
 ## Configuration

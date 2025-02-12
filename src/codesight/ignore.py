@@ -1,70 +1,75 @@
-"""Functions for handling file ignore patterns and gitignore parsing."""
+"""Functions for handling file ignore patterns."""
 
 import logging
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
-import chardet
 import pathspec
 
 logger = logging.getLogger(__name__)
 
 
 def parse_gitignore(root_folder: Path) -> pathspec.PathSpec:
-    """Parse .gitignore patterns from the root folder using standard Git pattern matching."""
+    """Parse .gitignore file and return a PathSpec object."""
     gitignore_path = root_folder / ".gitignore"
-    if not gitignore_path.exists():
-        logger.debug("No .gitignore file found at %s", gitignore_path)
-        return pathspec.PathSpec([])
+    patterns = []
 
-    try:
-        with open(gitignore_path, "r", encoding="utf-8") as f:
+    if gitignore_path.exists():
+        with open(gitignore_path) as f:
             patterns = [line.strip() for line in f if line.strip() and not line.startswith("#")]
-    except UnicodeDecodeError:
-        logger.warning("Failed to read .gitignore with UTF-8 encoding, attempting detection")
-        with open(gitignore_path, "rb") as f:
-            content = f.read()
-            encoding = chardet.detect(content)["encoding"] or "utf-8"
-        with open(gitignore_path, "r", encoding=encoding) as f:
-            patterns = [line.strip() for line in f if line.strip() and not line.startswith("#")]
-    except Exception as e:
-        logger.error("Failed to read .gitignore: %s", e)
-        return pathspec.PathSpec([])
 
-    return pathspec.PathSpec.from_lines(pathspec.patterns.GitWildMatchPattern, patterns)
+    # Add common patterns if not already present
+    common_patterns = [
+        ".git/",
+        "__pycache__/",
+        "*.pyc",
+        "*.pyo",
+        "*.pyd",
+        "*.so",
+        ".pytest_cache/",
+        ".coverage",
+        ".venv/",
+        ".env/",
+        "venv/",
+        "env/",
+        "dist/",
+        "build/",
+        "*.egg-info/",
+        ".tox/",
+        ".mypy_cache/",
+        ".ruff_cache/",
+        "node_modules/",
+    ]
+    for pattern in common_patterns:
+        if pattern not in patterns:
+            patterns.append(pattern)
+
+    return pathspec.PathSpec.from_lines("gitwildmatch", patterns)
 
 
-def should_ignore(
-    path: Path, config: Dict[str, Any], gitignore_spec: pathspec.PathSpec | None = None
-) -> bool:
-    """Check if a file should be ignored based on gitignore patterns and configuration."""
-    # First check if the file is explicitly included in config
-    if str(path) in config.get("include_files", []):
+def should_ignore(path: Path, config: dict[str, Any], gitignore_spec: pathspec.PathSpec) -> bool:
+    """Check if a file should be ignored based on configuration and gitignore patterns."""
+    str_path = str(path)
+
+    # Always include certain files
+    if str_path in config.get("include_files", []):
         return False
 
-    # Check if any parent folder starts with a dot (hidden folder)
-    for part in path.parts:
-        if part.startswith("."):
-            # Check if any parent path is included
-            for i in range(len(path.parts)):
-                if str(Path(*path.parts[: i + 1])) in config.get("include_files", []):
-                    return False
-            # If not explicitly included, ignore hidden folders
-            return True
-
-    # Check gitignore patterns first using standard Git pattern matching
-    if gitignore_spec and gitignore_spec.match_file(str(path)):
+    # Check exclude patterns first
+    if any(pattern in str_path for pattern in config.get("exclude_files", [])):
         return True
 
-    # Check if file matches any exclude patterns from config
-    if any(
-        pathspec.patterns.GitWildMatchPattern(pattern).match_file(str(path))
-        for pattern in config.get("exclude_files", [])
-    ):
+    # Check gitignore patterns
+    if gitignore_spec.match_file(str_path):
         return True
 
-    # Check file extension
-    if path.suffix and config.get("include_extensions"):
-        return path.suffix not in config.get("include_extensions", [])
+    # Check key directories if specified
+    key_dirs = config.get("key_directories", [])
+    if key_dirs and not any(dir_name in str_path.split("/") for dir_name in key_dirs):
+        return True
+
+    # Only include files with specified extensions
+    if path.suffix not in config.get("include_extensions", []):
+        return True
 
     return False

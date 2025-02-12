@@ -2,156 +2,129 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, cast
+from typing import Any, Optional, cast
 
 import click
-from rich.console import Console
-from rich.logging import RichHandler
+import toml
 
+from . import __version__
 from .collate import gather_and_collate
-from .config import auto_detect_project_type, load_config
+from .config import auto_detect_project_type as detect_project_type
+from .config import load_config
 from .reporting import copy_to_clipboard_if_requested, display_file_stats
 
-console = Console()
 logger = logging.getLogger(__name__)
 
 
 def setup_logging(verbose: bool) -> None:
-    """Configure logging with appropriate level and formatting."""
-    level = logging.DEBUG if verbose else logging.WARNING  # Only show warnings by default
+    """Configure logging based on verbosity level."""
+    log_level = logging.DEBUG if verbose else logging.INFO
     logging.basicConfig(
-        level=level,
-        format="%(message)s",
-        handlers=[RichHandler(rich_tracebacks=True, show_time=False, show_path=False)],
+        level=log_level,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
     )
 
 
-def write_output(output_path: str, content: str) -> None:
-    """Write content to output file."""
+def validate_output_file(
+    ctx: click.Context, param: click.Parameter, value: Optional[str]
+) -> Optional[str]:
+    """Validate output file path."""
+    if not value:
+        return None
+
     try:
-        with open(output_path, "w", encoding="utf-8") as f:
-            f.write(content)
-        logger.info("Output written to %s", output_path)
-    except Exception as e:
-        raise click.UsageError(f"Failed to write output file: {str(e)}")
+        path = Path(value)
+        if path.exists() and not path.is_file():
+            raise click.BadParameter(f"Output path exists but is not a file: {value}")
+        return value
+    except Exception as err:
+        raise click.BadParameter(f"Invalid output file path: {value}") from err
 
 
-@click.command()  # type: ignore
+def validate_user_config(
+    ctx: click.Context, param: click.Parameter, value: Optional[str]
+) -> Optional[dict[str, Any]]:
+    """Load and validate user configuration file."""
+    if not value:
+        return None
+
+    try:
+        path = Path(value)
+        if not path.exists():
+            raise click.BadParameter(f"Configuration file not found: {value}")
+        if not path.is_file():
+            raise click.BadParameter(f"Configuration path is not a file: {value}")
+
+        with open(path) as f:
+            return toml.load(f)
+    except toml.TomlDecodeError as err:
+        raise click.BadParameter(f"Invalid TOML in configuration file: {value}") from err
+    except Exception as err:
+        raise click.BadParameter(f"Failed to read configuration file: {value}") from err
+
+
+@click.command()
+@click.version_option(__version__)
 @click.option(
-    "--root", default=".", help="Root folder to scan for code files. Defaults to current directory."
+    "-o",
+    "--output",
+    type=str,
+    callback=validate_output_file,
+    help="Output file path (default: print to console)",
 )
 @click.option(
-    "--output", default="codesight_source.txt", help="Output file path for the collated code."
+    "-c",
+    "--copy",
+    is_flag=True,
+    help="Copy output to clipboard",
 )
 @click.option(
+    "-t",
     "--type",
-    "project_type",
-    default=None,
-    help=(
-        "Force a specific project type (python/javascript). "
-        "By default, auto-detects based on project files."
-    ),
+    type=click.Choice(["python", "javascript"], case_sensitive=False),
+    help="Force project type (default: auto-detect)",
 )
 @click.option(
-    "--user-config", default=None, help="Path to TOML configuration file to override defaults."
+    "-u",
+    "--user-config",
+    type=str,
+    callback=validate_user_config,
+    help="Path to user configuration file",
 )
-@click.option(
-    "--copy-to-clipboard", is_flag=True, help="Copy the collated output to system clipboard."
-)
-@click.option(
-    "--model",
-    default="gpt-4",
-    help="OpenAI model name for token counting (e.g. gpt-4, gpt-3.5-turbo).",
-)
-@click.option("--verbose", is_flag=True, help="Enable detailed debug logging with rich tracebacks.")
-def codesight(
-    root: str,
-    output: str,
-    project_type: str | None,
-    user_config: str | None,
-    copy_to_clipboard: bool,
-    model: str,
+@click.option("-v", "--verbose", is_flag=True, help="Enable verbose logging")
+def main(
+    output: Optional[str],
+    copy: bool,
+    type: Optional[str],
+    user_config: Optional[dict[str, Any]],
     verbose: bool,
 ) -> None:
-    """CodeSight: Simple LLM-friendly code collation with minimal config required.
+    """Gather and format code for LLM context."""
+    setup_logging(verbose)
+    logger.debug("Starting CodeSight %s", __version__)
 
-    Scans a directory for code files, collates them into a single document with proper
-    formatting and documentation, and optionally estimates token usage for LLM context.
-
-    Examples:
-        codesight                     # Scan current directory
-        codesight --root ./myproject  # Scan specific directory
-        codesight --type python       # Force Python project type
-        codesight --copy-to-clipboard # Copy output to clipboard
-    """
     try:
-        # Set up logging
-        setup_logging(verbose)
-        if verbose:
-            logger.debug("Starting CodeSight with root directory: %s", root)
+        root_folder = Path.cwd()
+        project_type = type or detect_project_type(root_folder)
+        config = load_config(project_type, user_config)
 
-        root_path = Path(root).resolve()
-        if not root_path.exists():
-            raise click.UsageError(f"Root directory does not exist: {root_path}")
-
-        # Load and validate config
-        try:
-            config = load_config(user_config)
-            if user_config and verbose:
-                logger.debug("Using custom configuration from %s", user_config)
-        except Exception as e:
-            raise click.UsageError(f"Configuration error: {str(e)}")
-
-        # Auto-detect project type if not supplied by user
-        if not project_type:
-            project_type = auto_detect_project_type(root_path)
-            if verbose:
-                logger.debug("Detected project type: %s", project_type)
-
-        # Merge template if project type is known
-        if project_type in config["templates"]:
-            config.update(config["templates"][project_type])
-
-        # Process files
-        try:
-            final_text, token_count, file_stats = gather_and_collate(
-                root_path, cast(Dict[str, Any], config)
-            )
-        except Exception as e:
-            raise click.UsageError(f"Failed to process files: {str(e)}")
-
-        # Write output
-        try:
-            write_output(output, final_text)
-            if verbose:
-                logger.debug("Successfully wrote output to %s", output)
-        except Exception as e:
-            raise click.UsageError(f"Failed to write output file: {str(e)}")
-
-        # Display file statistics
-        display_file_stats(
-            file_stats,
-            token_count,
-            output_file=output,
-            copied_to_clipboard=copy_to_clipboard_if_requested(final_text, copy_to_clipboard),
-            project_type=project_type,
+        logger.info("Processing %s project at %s", project_type or "unknown", root_folder)
+        collated, token_count, file_stats = gather_and_collate(
+            root_folder, cast(dict[str, Any], config)
         )
 
-        if verbose:
-            logger.debug("CodeSight completed successfully")
+        if output:
+            try:
+                with open(output, "w") as f:
+                    f.write(collated)
+                logger.info("Output written to %s", output)
+            except Exception as err:
+                raise click.ClickException(f"Failed to write output file: {output}") from err
 
-    except click.UsageError as e:
-        console.print(f"[red]Error:[/red] {str(e)}")
-        if verbose:
-            logger.exception("Detailed error information:")
-        raise click.Abort()
-    except Exception as e:
-        console.print(f"[red]Unexpected error:[/red] {str(e)}")
-        if verbose:
-            logger.exception("Detailed error information:")
-        raise click.Abort()
+        was_copied = copy_to_clipboard_if_requested(collated, copy)
+        display_file_stats(file_stats, token_count, output, was_copied, project_type)
 
-
-def main() -> None:
-    """Entry point for the CLI."""
-    codesight()
+    except Exception as err:
+        logger.debug("Error details:", exc_info=True)
+        raise click.ClickException(str(err)) from err

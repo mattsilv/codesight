@@ -99,19 +99,32 @@ def merge_configs(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, A
     return base
 
 
-def load_config(user_config_path: str | None = None) -> CodeSightConfig:
-    """Load default config and merge in user overrides if provided."""
-    config = dict(DEFAULT_CONFIG)
-    if user_config_path:
-        try:
-            user_overrides = parse_user_config(user_config_path)
-            merge_configs(config, user_overrides)
-            logger.debug("Successfully merged user configuration")
-        except Exception as e:
-            logger.error("Failed to load user configuration: %s", e)
-            raise
+def load_config(
+    project_type: str | None = None,
+    user_config: dict[str, Any] | None = None,
+) -> CodeSightConfig:
+    """Load configuration, merging defaults with user config.
 
-    # Validate the final configuration
+    Args:
+        project_type: Optional project type to load template for
+        user_config: Optional user configuration dictionary
+
+    Returns:
+        Merged configuration dictionary
+    """
+    # Start with a copy of the default config
+    config = cast(dict[str, Any], DEFAULT_CONFIG.copy())
+
+    # Apply project type template if specified
+    if project_type and project_type in config["templates"]:
+        template = config["templates"][project_type]
+        config = merge_configs(config, cast(dict[str, Any], template))
+
+    # Apply user config if provided
+    if user_config:
+        config = merge_configs(config, user_config)
+
+    # Validate final config
     validate_config(config)
     return cast(CodeSightConfig, config)
 

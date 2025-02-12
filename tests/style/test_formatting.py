@@ -2,37 +2,34 @@
 
 import ast
 from pathlib import Path
-from typing import List
 
 import pytest
 
+# Constants for test assertions
+MAX_LINE_LENGTH = 100
 
-def get_python_files() -> List[Path]:
+
+def get_python_files() -> list[Path]:
     """Get all Python files in the project."""
-    src_dir = Path("src/codesight")
-    test_dir = Path("tests")
-    python_files = []
-
-    for directory in [src_dir, test_dir]:
-        for file in directory.rglob("*.py"):
-            python_files.append(file)
-
-    return python_files
+    root = Path(__file__).parent.parent.parent / "src"
+    return [p for p in root.rglob("*.py") if p.is_file()]
 
 
 def test_line_length() -> None:
-    """Test that no lines exceed 100 characters."""
+    """Test that no lines exceed max length."""
     for file_path in get_python_files():
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             for i, line in enumerate(f, 1):
-                if len(line.rstrip()) > 100:
-                    pytest.fail(f"Line {i} in {file_path} exceeds 100 characters: {line.strip()}")
+                line_length = len(line.rstrip())
+                if line_length > MAX_LINE_LENGTH:
+                    msg = f"Line {i} in {file_path} exceeds {MAX_LINE_LENGTH} chars: {line.strip()}"
+                    pytest.fail(msg)
 
 
 def test_function_type_annotations() -> None:
     """Test that all functions have type annotations."""
     for file_path in get_python_files():
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             content = f.read()
 
         try:
@@ -66,7 +63,7 @@ def test_function_type_annotations() -> None:
 def test_no_duplicate_function_definitions() -> None:
     """Test that there are no duplicate function definitions."""
     for file_path in get_python_files():
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             content = f.read()
 
         try:

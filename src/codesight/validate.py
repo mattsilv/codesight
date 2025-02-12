@@ -23,12 +23,12 @@ file_docs = { "pyproject.toml" = "Project configuration" }
 """
 
 import logging
-from typing import Any, Dict
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-def validate_template(name: str, template: Dict[str, Any]) -> None:
+def validate_template(name: str, template: dict[str, Any]) -> None:
     """Validate a template configuration.
 
     Args:
@@ -93,7 +93,7 @@ def validate_template(name: str, template: Dict[str, Any]) -> None:
                 )
 
 
-def validate_config(config: Dict[str, Any]) -> None:
+def validate_config(config: dict[str, Any]) -> None:
     """Validate configuration structure and values.
 
     Args:

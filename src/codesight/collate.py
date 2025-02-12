@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Optional
 
 import chardet
 import pathspec
@@ -30,7 +30,7 @@ def estimate_token_length(text: str, model: str = "gpt-4") -> Optional[int]:
         return None
 
 
-def validate_config(config: Dict[str, Any]) -> None:
+def validate_config(config: dict[str, Any]) -> None:
     """Validate configuration dictionary."""
     required_keys = {"include_extensions", "exclude_files", "include_files"}
     if not all(key in config for key in required_keys):
@@ -49,9 +49,9 @@ def validate_config(config: Dict[str, Any]) -> None:
 
 def gather_and_collate(
     root_folder: Path,
-    config: Dict[str, Any],
+    config: dict[str, Any],
     gitignore_patterns: Optional[pathspec.PathSpec] = None,
-) -> Tuple[str, Optional[int], Dict[str, Dict[str, Any]]]:
+) -> tuple[str, Optional[int], dict[str, dict[str, Any]]]:
     """Gather and collate code files from the root folder."""
     # Validate config first
     validate_config(config)
@@ -63,7 +63,7 @@ def gather_and_collate(
         gitignore_patterns = parse_gitignore(root_folder)
 
     result = []
-    file_stats: Dict[str, Dict[str, Any]] = {}
+    file_stats: dict[str, dict[str, Any]] = {}
     skipped_files = []
 
     # Add folder structure at the beginning
@@ -90,7 +90,7 @@ def gather_and_collate(
     for file_path in all_files:
         relative_path = file_path.relative_to(root_folder)
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 content = f.read()
                 lines = content.count("\n") + 1
         except UnicodeDecodeError:
@@ -100,7 +100,7 @@ def gather_and_collate(
             with open(file_path, "rb") as f:
                 raw_content = f.read()
                 encoding = chardet.detect(raw_content)["encoding"] or "utf-8"
-            with open(file_path, "r", encoding=encoding) as f:
+            with open(file_path, encoding=encoding) as f:
                 content = f.read()
                 lines = content.count("\n") + 1
 

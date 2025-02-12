@@ -4,25 +4,17 @@ import ast
 import importlib
 import sys
 from pathlib import Path
-from typing import List, Set, Tuple
 
 import pytest
 
 
-def get_python_files() -> List[Path]:
+def get_python_files() -> list[Path]:
     """Get all Python files in the project."""
-    src_dir = Path("src/codesight")
-    test_dir = Path("tests")
-    python_files = []
-
-    for directory in [src_dir, test_dir]:
-        for file in directory.rglob("*.py"):
-            python_files.append(file)
-
-    return python_files
+    root = Path(__file__).parent.parent.parent / "src"
+    return [p for p in root.rglob("*.py") if p.is_file()]
 
 
-def get_all_imports(tree: ast.AST) -> Set[Tuple[str, str, str]]:
+def get_all_imports(tree: ast.AST) -> set[tuple[str, str, str]]:
     """Get all import names from an AST."""
     imports = set()
     for node in ast.walk(tree):
@@ -45,7 +37,7 @@ def get_all_imports(tree: ast.AST) -> Set[Tuple[str, str, str]]:
 def test_no_unused_imports() -> None:
     """Test that there are no unused imports in Python files."""
     for file_path in get_python_files():
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             content = f.read()
 
         try:
@@ -79,7 +71,7 @@ def test_imports_can_be_resolved() -> None:
         sys.path.insert(0, str(src_path))
 
     for file_path in get_python_files():
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             content = f.read()
 
         try:
@@ -97,3 +89,42 @@ def test_imports_can_be_resolved() -> None:
                     pytest.fail(f"{msg}: {e}")
         except SyntaxError as e:
             pytest.fail(f"Syntax error in {file_path}: {e}")
+
+
+def get_imports(content: str) -> tuple[set[str], list[tuple[str, str]]]:
+    """Extract imports from Python code.
+
+    Returns:
+        tuple: (set of module imports, list of from imports)
+    """
+    tree = ast.parse(content)
+    module_imports: set[str] = set()
+    from_imports: list[tuple[str, str]] = []
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for name in node.names:
+                module_imports.add(name.name)
+        elif isinstance(node, ast.ImportFrom):
+            module = node.module or ""
+            for name in node.names:
+                from_imports.append((module, name.name))
+
+    return module_imports, from_imports
+
+
+def test_import_order() -> None:
+    """Test that imports are properly ordered."""
+    for file_path in get_python_files():
+        with open(file_path, encoding="utf-8") as f:
+            content = f.read()
+
+        module_imports, from_imports = get_imports(content)
+
+        # Check that standard library imports come first
+        for module in module_imports:
+            if "." in module:
+                assert any(
+                    module.startswith(stdlib)
+                    for stdlib in ["os", "sys", "pathlib", "logging", "typing"]
+                ), f"Third-party import {module} before standard library imports in {file_path}"

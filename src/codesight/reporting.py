@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 import pyperclip
 from rich.console import Console
@@ -12,9 +12,12 @@ from rich.table import Table
 logger = logging.getLogger(__name__)
 console = Console()
 
+# Maximum number of files to show in detail
+MAX_DETAILED_FILES = 10
+
 
 def display_file_stats(
-    file_stats: Dict[str, Dict[str, Any]],
+    file_stats: dict[str, dict[str, Any]],
     total_token_count: Optional[int],
     output_file: Optional[str] = None,
     copied_to_clipboard: bool = False,
@@ -34,15 +37,18 @@ def display_file_stats(
     }
     sorted_stats = sorted(included_files.items(), key=lambda x: x[1]["tokens"], reverse=True)
 
-    for path, stats in sorted_stats[:10]:
+    for path, stats in sorted_stats[:MAX_DETAILED_FILES]:
         p = Path(path)
         dir_path = str(p.parent) if str(p.parent) != "." else "[dim i]root[/dim i]"
         stats_table.add_row(
-            dir_path, p.name, f"{stats.get('tokens', 0):,}", f"{stats.get('lines', 0):,}"
+            dir_path,
+            p.name,
+            f"{stats.get('tokens', 0):,}",
+            f"{stats.get('lines', 0):,}",
         )
 
-    if len(sorted_stats) > 10:
-        remaining = sorted_stats[10:]
+    if len(sorted_stats) > MAX_DETAILED_FILES:
+        remaining = sorted_stats[MAX_DETAILED_FILES:]
         remaining_tokens = sum(stats["tokens"] for _, stats in remaining)
         remaining_lines = sum(stats["lines"] for _, stats in remaining)
         stats_table.add_row(
@@ -79,7 +85,7 @@ def display_file_stats(
         console.print(panel)
 
 
-def display_error_summary(errors: List[Tuple[Path, str]]) -> None:
+def display_error_summary(errors: list[tuple[Path, str]]) -> None:
     """Display a summary of errors encountered during processing."""
     if not errors:
         return

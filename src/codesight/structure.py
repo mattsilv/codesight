@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Set
+from typing import Any
 
 import pathspec
 
@@ -14,11 +14,11 @@ logger = logging.getLogger(__name__)
 def generate_folder_structure(
     root_folder: Path,
     gitignore_spec: pathspec.PathSpec,
-    config: Dict[str, Any],
+    config: dict[str, Any],
 ) -> str:
     """Generate a tree-like folder structure of the project."""
     structure = ["# Project Structure\n```"]
-    seen_dirs: Set[str] = set()
+    seen_dirs: set[str] = set()
 
     def should_include_path(path: Path) -> bool:
         """Check if path should be included in structure."""
@@ -148,7 +148,7 @@ def get_file_group(file_path: Path, root: Path) -> int:
     return 8
 
 
-def sort_files(files: List[Path], root_folder: Path) -> List[Path]:
+def sort_files(files: list[Path], root_folder: Path) -> list[Path]:
     """Sort files in a logical order for processing.
 
     Files are sorted by:

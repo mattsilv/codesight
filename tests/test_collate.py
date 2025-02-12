@@ -1,8 +1,9 @@
 """Tests for the collate module."""
 
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
+import pathspec
 import pytest
 
 from codesight.collate import (
@@ -13,6 +14,12 @@ from codesight.collate import (
     should_ignore,
     validate_config,
 )
+
+# Constants for test assertions
+EXPECTED_FILE_COUNT = 2
+EXPECTED_STATS_COUNT = 2
+EXPECTED_ENCODING_FILE_COUNT = 2
+EXPECTED_MULTIPLE_FILES_COUNT = 2
 
 
 def create_test_file(tmp_path: Path, filename: str, content: str, encoding: str = "utf-8") -> Path:
@@ -41,7 +48,7 @@ def test_estimate_token_length() -> None:
 
 def test_validate_config() -> None:
     """Test configuration validation."""
-    valid_config: Dict[str, Any] = {
+    valid_config: dict[str, Any] = {
         "include_extensions": [".py", ".md"],
         "exclude_files": [".gitignore"],
         "include_files": ["README.md"],
@@ -50,7 +57,7 @@ def test_validate_config() -> None:
     validate_config(valid_config)  # Should not raise
 
     # Test missing required keys
-    invalid_config: Dict[str, Any] = {"exclude_files": []}
+    invalid_config: dict[str, Any] = {"exclude_files": []}
     with pytest.raises(ValueError, match="Missing required configuration keys"):
         validate_config(invalid_config)
 
@@ -72,7 +79,7 @@ def test_gather_and_collate_basic(tmp_path: Path) -> None:
     create_test_file(tmp_path, "README.md", "# Test")
     create_test_file(tmp_path, "ignore.pyc", "binary")
 
-    config: Dict[str, Any] = {
+    config: dict[str, Any] = {
         "include_extensions": [".py", ".md"],
         "exclude_files": ["*.pyc"],
         "include_files": [],
@@ -87,7 +94,7 @@ def test_gather_and_collate_basic(tmp_path: Path) -> None:
     assert "print('hello')" in result
     assert "# Test" in result
     assert "ignore.pyc" not in result
-    assert len(file_stats) == 2
+    assert len(file_stats) == EXPECTED_FILE_COUNT
     assert token_count is not None and token_count > 0
 
 
@@ -99,7 +106,7 @@ def test_gather_and_collate_with_structure(tmp_path: Path) -> None:
     create_test_file(tmp_path / "src", "main.py", "def main(): pass")
     create_test_file(tmp_path / "tests", "test_main.py", "def test_main(): pass")
 
-    config: Dict[str, Any] = {
+    config: dict[str, Any] = {
         "include_extensions": [".py"],
         "exclude_files": [],
         "include_files": [],
@@ -123,7 +130,7 @@ def test_gather_and_collate_with_file_encodings(tmp_path: Path) -> None:
     create_test_file(tmp_path, "utf8.txt", "Hello, UTF-8!", "utf-8")
     create_test_file(tmp_path, "latin1.txt", "Hello, Latin-1!", "latin-1")
 
-    config: Dict[str, Any] = {
+    config: dict[str, Any] = {
         "include_extensions": [".txt"],
         "exclude_files": [],
         "include_files": [],
@@ -131,12 +138,14 @@ def test_gather_and_collate_with_file_encodings(tmp_path: Path) -> None:
         "truncate_py_literals": 5,
     }
 
-    result, _, _ = gather_and_collate(tmp_path, config)
+    result, _, file_stats = gather_and_collate(tmp_path, config)
 
+    # Check both files were processed
     assert "utf8.txt" in result
     assert "Hello, UTF-8!" in result
     assert "latin1.txt" in result
     assert "Hello, Latin-1!" in result
+    assert len(file_stats) == EXPECTED_ENCODING_FILE_COUNT
 
 
 def test_gather_and_collate_with_gitignore(tmp_path: Path) -> None:
@@ -150,7 +159,7 @@ def test_gather_and_collate_with_gitignore(tmp_path: Path) -> None:
     (tmp_path / "build").mkdir()
     create_test_file(tmp_path / "build", "output.txt", "build output")
 
-    config: Dict[str, Any] = {
+    config: dict[str, Any] = {
         "include_extensions": [".py", ".txt", ".log"],
         "exclude_files": [],
         "include_files": [],
@@ -194,7 +203,7 @@ def test_file_encodings(tmp_path: Path) -> None:
     create_test_file(tmp_path, "utf8.txt", "Hello, UTF-8!", "utf-8")
     create_test_file(tmp_path, "latin1.txt", "Hello, Latin-1!", "latin-1")
 
-    config: Dict[str, Any] = {
+    config: dict[str, Any] = {
         "include_extensions": [".txt"],
         "exclude_files": [],
         "include_files": [],
@@ -219,27 +228,28 @@ def test_malformed_config(tmp_path: Path) -> None:
     test_dir.mkdir()
 
     # Test with missing required keys
-    invalid_config: Dict[str, Any] = {"exclude_files": []}  # Missing other required keys
+    invalid_config: dict[str, Any] = {"exclude_files": []}  # Missing other required keys
 
     try:
         gather_and_collate(test_dir, invalid_config)
-        assert False, "Should raise ValueError"
+        raise AssertionError("Should raise ValueError")
     except ValueError as e:
         assert "Missing required configuration keys" in str(e)
 
 
 def test_should_ignore() -> None:
     """Test file ignore logic."""
-    config: Dict[str, Any] = {
+    config: dict[str, Any] = {
         "exclude_files": ["secret.txt"],
         "include_extensions": [".py"],
         "include_files": ["README.md"],
     }
+    gitignore_spec = pathspec.PathSpec([])
 
-    assert should_ignore(Path("secret.txt"), config)
-    assert should_ignore(Path("test.pyc"), config)
-    assert not should_ignore(Path("test.py"), config)
-    assert not should_ignore(Path("README.md"), config)
+    assert should_ignore(Path("secret.txt"), config, gitignore_spec)
+    assert should_ignore(Path("test.pyc"), config, gitignore_spec)
+    assert not should_ignore(Path("test.py"), config, gitignore_spec)
+    assert not should_ignore(Path("README.md"), config, gitignore_spec)
 
 
 def test_process_python_file() -> None:
@@ -254,3 +264,102 @@ nested = {'a': [1, 2, 3, 4, 5, 6]}
     assert "[1, 2]" in processed  # Small list unchanged
     assert "data = [1, 2, 3]" in processed  # Large list truncated
     assert "'a': [1, 2, 3]" in processed  # Nested list truncated
+
+
+def test_gather_and_collate_empty_dir(tmp_path: Path) -> None:
+    """Test gathering and collating from an empty directory."""
+    config: dict[str, Any] = {
+        "include_extensions": [".py", ".md"],
+        "exclude_files": [],
+        "include_files": [],
+        "truncate_py_literals": 5,
+    }
+    gitignore_patterns = parse_gitignore(tmp_path)
+    collated, token_count, file_stats = gather_and_collate(tmp_path, config, gitignore_patterns)
+    assert collated
+    assert token_count is not None
+    assert isinstance(file_stats, dict)
+
+
+def test_gather_and_collate_single_file(tmp_path: Path) -> None:
+    """Test gathering and collating a single file."""
+    config: dict[str, Any] = {
+        "include_extensions": [".py", ".md"],
+        "exclude_files": [],
+        "include_files": [],
+        "truncate_py_literals": 5,
+    }
+    create_test_file(tmp_path, "test.py", "print('hello')")
+    gitignore_patterns = parse_gitignore(tmp_path)
+    collated, token_count, file_stats = gather_and_collate(tmp_path, config, gitignore_patterns)
+    assert "test.py" in collated
+    assert token_count is not None
+    assert len(file_stats) == 1
+
+
+def test_gather_and_collate_multiple_files(tmp_path: Path) -> None:
+    """Test gathering and collating multiple files."""
+    config: dict[str, Any] = {
+        "include_extensions": [".py", ".md"],
+        "exclude_files": [],
+        "include_files": [],
+        "truncate_py_literals": 5,
+    }
+    create_test_file(tmp_path, "test1.py", "print('hello')")
+    create_test_file(tmp_path, "test2.py", "print('world')")
+    collated, token_count, file_stats = gather_and_collate(tmp_path, config)
+    assert "test1.py" in collated
+    assert "test2.py" in collated
+    assert token_count is not None
+    assert len(file_stats) == EXPECTED_MULTIPLE_FILES_COUNT
+
+
+def test_gather_and_collate_nested_dirs(tmp_path: Path) -> None:
+    """Test gathering and collating files from nested directories."""
+    config: dict[str, Any] = {
+        "include_extensions": [".py", ".md"],
+        "exclude_files": [],
+        "include_files": [],
+        "truncate_py_literals": 5,
+    }
+    (tmp_path / "src").mkdir()
+    create_test_file(tmp_path / "src", "main.py", "print('hello')")
+    gitignore_patterns = parse_gitignore(tmp_path)
+    collated, token_count, file_stats = gather_and_collate(tmp_path, config, gitignore_patterns)
+    assert "src/main.py" in collated
+    assert token_count is not None
+    assert len(file_stats) == 1
+
+
+def test_gather_and_collate_with_invalid_file(tmp_path: Path) -> None:
+    """Test gathering and collating with an invalid file type."""
+    config: dict[str, Any] = {
+        "include_extensions": [".py", ".md"],
+        "exclude_files": [],
+        "include_files": [],
+        "truncate_py_literals": 5,
+    }
+    create_test_file(tmp_path, "test.py", "print('hello')")
+    create_test_file(tmp_path, "invalid.txt", "invalid")
+    gitignore_patterns = parse_gitignore(tmp_path)
+    collated, token_count, file_stats = gather_and_collate(tmp_path, config, gitignore_patterns)
+    assert "test.py" in collated
+    assert "invalid.txt" not in collated
+    assert token_count is not None
+    assert len(file_stats) == 1
+
+
+def test_gather_and_collate_with_invalid_encoding(tmp_path: Path) -> None:
+    """Test gathering and collating a file with non-UTF-8 encoding."""
+    config: dict[str, Any] = {
+        "include_extensions": [".py", ".md"],
+        "exclude_files": [],
+        "include_files": [],
+        "truncate_py_literals": 5,
+    }
+    create_test_file(tmp_path, "test.py", "print('hello')", encoding="latin-1")
+    gitignore_patterns = parse_gitignore(tmp_path)
+    collated, token_count, file_stats = gather_and_collate(tmp_path, config, gitignore_patterns)
+    assert "test.py" in collated
+    assert token_count is not None
+    assert len(file_stats) == 1
