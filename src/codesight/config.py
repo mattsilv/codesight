@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, TypedDict, cast
+from typing import Any, Dict, Optional, TypedDict, cast
 
 import toml
 
@@ -100,8 +100,8 @@ def merge_configs(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, A
 
 
 def load_config(
-    project_type: str | None = None,
-    user_config: dict[str, Any] | None = None,
+    project_type: Optional[str] = None,
+    user_config: Optional[dict[str, Any]] = None,
 ) -> CodeSightConfig:
     """Load configuration, merging defaults with user config.
 
