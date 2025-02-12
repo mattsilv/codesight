@@ -29,11 +29,32 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install dependencies
-        run: poetry install
+      - name: Clean environment
+        run: |
+          rm -rf codesight/*.py  # Remove any legacy files
+          rm -rf build/ dist/ *.egg-info/  # Clean build artifacts
+          find . -type d -name __pycache__ -exec rm -rf {} +
 
-      - name: Run tests
-        run: poetry run pytest
+      - name: Install dependencies
+        run: |
+          poetry install
+          poetry run pip list  # Log installed packages for debugging
+
+      - name: Run linting
+        run: |
+          poetry run ruff .
+          poetry run black --check .
+          poetry run mypy src tests
+
+      - name: Run tests with coverage
+        run: |
+          poetry run pytest --cov=src/codesight --cov-report=xml --cov-report=term-missing tests/
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: true
 
       - name: Build package
         run: poetry build

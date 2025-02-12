@@ -2,21 +2,19 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import chardet
+import pathspec
 import tiktoken
 
 from .ignore import parse_gitignore, should_ignore
+from .structure import generate_folder_structure, sort_files
 from .transform import process_python_file
 
 __all__ = [
     "gather_and_collate",
     "estimate_token_length",
-    "validate_config",
-    "parse_gitignore",
-    "process_python_file",
-    "should_ignore",
 ]
 
 logger = logging.getLogger(__name__)
@@ -33,17 +31,26 @@ def estimate_token_length(text: str, model: str = "gpt-4") -> Optional[int]:
 
 
 def validate_config(config: Dict[str, Any]) -> None:
-    """Validate configuration structure and values."""
-    required_keys = {"include_extensions", "exclude_files", "include_files", "truncate_py_literals"}
-    missing_keys = required_keys - set(config.keys())
-    if missing_keys:
-        raise ValueError(f"Missing required configuration keys: {missing_keys}")
+    """Validate configuration dictionary."""
+    required_keys = {"include_extensions", "exclude_files", "include_files"}
+    if not all(key in config for key in required_keys):
+        raise ValueError("Missing required configuration keys")
+
+    # Type checks
+    if not isinstance(config["include_extensions"], list):
+        raise ValueError("include_extensions must be a list")
+    if not isinstance(config["exclude_files"], list):
+        raise ValueError("exclude_files must be a list")
+    if not isinstance(config["include_files"], list):
+        raise ValueError("include_files must be a list")
+    if "truncate_py_literals" in config and not isinstance(config["truncate_py_literals"], int):
+        raise ValueError("truncate_py_literals must be an integer")
 
 
 def gather_and_collate(
     root_folder: Path,
     config: Dict[str, Any],
-    gitignore_patterns: Optional[List[str]] = None,
+    gitignore_patterns: Optional[pathspec.PathSpec] = None,
 ) -> Tuple[str, Optional[int], Dict[str, Dict[str, Any]]]:
     """Gather and collate code files from the root folder."""
     # Validate config first
@@ -59,6 +66,12 @@ def gather_and_collate(
     file_stats: Dict[str, Dict[str, Any]] = {}
     skipped_files = []
 
+    # Add folder structure at the beginning
+    folder_structure = generate_folder_structure(root_folder, gitignore_patterns, config)
+    result.append(folder_structure)
+
+    # Gather all files first
+    all_files = []
     for file_path in root_folder.rglob("*"):
         if not file_path.is_file():
             continue
@@ -68,6 +81,14 @@ def gather_and_collate(
             skipped_files.append(str(relative_path))
             continue
 
+        all_files.append(file_path)
+
+    # Sort files in logical order
+    all_files = sort_files(all_files, root_folder)
+
+    # Process files in order
+    for file_path in all_files:
+        relative_path = file_path.relative_to(root_folder)
         try:
             with open(file_path, "r", encoding="utf-8") as f:
                 content = f.read()

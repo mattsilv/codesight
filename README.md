@@ -4,8 +4,44 @@
 [![PyPI version](https://badge.fury.io/py/codesight.svg)](https://badge.fury.io/py/codesight)
 [![Python Version](https://img.shields.io/pypi/pyversions/codesight)](https://pypi.org/project/codesight/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![codecov](https://codecov.io/gh/mattsilv/codesight/branch/main/graph/badge.svg)](https://codecov.io/gh/mattsilv/codesight)
 
-A code collation tool for LLM context generation. It takes all of the code in your project and collates it into a single file so you can paste it into your favorite LLM for debugging, testing, or other purposes.
+CodeSight is a developer tool designed to enhance your LLM-powered coding experience. When you're stuck in a complex debugging session or need help understanding a codebase, CodeSight makes it easy to get assistance from powerful LLMs like ChatGPT, Claude, or other AI models.
+
+## What's New in 0.1.1
+
+- **Improved File Organization**: Enhanced file grouping logic with 8 distinct categories for better code organization
+- **Better Error Messages**: Configuration validation now provides clear, actionable error messages
+- **Unicode Support**: Full support for Unicode paths and filenames
+- **Enhanced Testing**: Comprehensive test suite with edge case coverage
+- **Improved CI**: Clean environment builds with full linting and test coverage
+
+See the [CHANGELOG](CHANGELOG.md) for full details.
+
+## See it in Action
+
+![Sample CodeSight Report](docs/assets/sample-report.png)
+_A clean, organized summary of your codebase with file statistics and token counts_
+
+![Sample Structure View](docs/assets/sample-structure.png)
+_Automatically generated project structure for better context_
+
+![Sample Code View](docs/assets/sample-code.png)
+_Neatly formatted code snippets with syntax highlighting_
+
+With a single command (`codesight`), it:
+
+- Intelligently gathers all relevant code from your project
+- Formats it for optimal LLM consumption
+- Copies it to your clipboard, ready to paste into any AI assistant
+- Provides a summary of files and token usage
+
+This is particularly useful when:
+
+- You're stuck in a complex debugging loop in Cursor or your IDE
+- You need to escalate to a more powerful model like GPT-4 or Claude
+- You want to get a second opinion on your code from a different LLM
+- You need to share your codebase context with an AI assistant quickly
 
 ## Installation
 
@@ -50,7 +86,7 @@ codesight --verbose
 Create a `.codesight_config.toml` file to customize behavior. Here's a complete example with all available options:
 
 ```toml
-# File extensions to include
+# File extensions to include (must start with '.')
 include_extensions = [".py", ".md", ".rst", ".sql", ".toml"]
 
 # Files to always exclude (supports glob patterns)
@@ -102,49 +138,25 @@ file_docs = {
 - Customizable via TOML config
 - Token counting for LLM context limits
 - Rich console output with file statistics
+- Full Unicode support for paths and filenames
+- Comprehensive error messages
 
-## Advanced Usage
+## File Organization
 
-### Project Type Detection
+CodeSight organizes files into priority groups for better context:
 
-CodeSight automatically detects your project type:
+1. Core project files (README, pyproject.toml, etc.)
+2. Configuration and hidden files
+3. Entry points (**init**.py, main.py)
+4. Core source code (src/, lib/, core/)
+5. Tests (test\_\*.py, tests/)
+6. Documentation and examples
+7. Build artifacts
+8. Other files
 
-- Python: Detected by presence of `pyproject.toml`
-- JavaScript: Detected by presence of `package.json`
-- Unopinionated: Used when no specific markers are found
+## Development
 
-### Token Counting
-
-Specify the LLM model for accurate token counting:
-
-```bash
-codesight --model gpt-4
-```
-
-### Custom Output Location
-
-Save the collated output to a specific file:
-
-```bash
-codesight --output my_codebase.txt
-```
-
-### Combining Options
-
-You can combine multiple options:
-
-```bash
-codesight --root ./myproject --type python --copy-to-clipboard --verbose
-```
-
-## Error Handling
-
-CodeSight handles various error conditions gracefully:
-
-- Files with non-UTF8 encodings are detected and processed
-- Malformed configuration files produce clear error messages
-- File access errors are logged with details
-- Python parsing errors are handled with warnings
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
 
 ## License
 

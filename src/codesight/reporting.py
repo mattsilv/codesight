@@ -4,10 +4,10 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-import pyperclip  # type: ignore
-from rich.console import Console  # type: ignore
-from rich.panel import Panel  # type: ignore
-from rich.table import Table  # type: ignore
+import pyperclip
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -21,14 +21,12 @@ def display_file_stats(
     project_type: Optional[str] = None,
 ) -> None:
     """Display statistics about the files processed using Rich tables."""
-    # Main stats table
     stats_table = Table(title="File Statistics")
     stats_table.add_column("Path", style="blue")
     stats_table.add_column("File", style="cyan")
     stats_table.add_column("Tokens", justify="right", style="green")
     stats_table.add_column("Lines", justify="right", style="yellow")
 
-    # Filter and sort files
     included_files = {
         path: stats
         for path, stats in file_stats.items()
@@ -36,7 +34,6 @@ def display_file_stats(
     }
     sorted_stats = sorted(included_files.items(), key=lambda x: x[1]["tokens"], reverse=True)
 
-    # Display top 10 files
     for path, stats in sorted_stats[:10]:
         p = Path(path)
         dir_path = str(p.parent) if str(p.parent) != "." else "[dim i]root[/dim i]"
@@ -44,7 +41,6 @@ def display_file_stats(
             dir_path, p.name, f"{stats.get('tokens', 0):,}", f"{stats.get('lines', 0):,}"
         )
 
-    # Add summary row for remaining files
     if len(sorted_stats) > 10:
         remaining = sorted_stats[10:]
         remaining_tokens = sum(stats["tokens"] for _, stats in remaining)
@@ -56,10 +52,7 @@ def display_file_stats(
             f"[dim]{remaining_lines:,}[/dim]",
         )
 
-    # Add separator before totals
     stats_table.add_section()
-
-    # Add total row
     total_lines = sum(stats["lines"] for _, stats in included_files.items())
     stats_table.add_row(
         "[bold]Total[/bold]",
@@ -68,7 +61,6 @@ def display_file_stats(
         f"[bold]{total_lines:,}[/bold]",
     )
 
-    # Create info table
     info_table = Table(box=None, show_header=False, show_edge=False, pad_edge=False)
     info_table.add_column("Key", style="bright_black")
     info_table.add_column("Value", style="bright_white")
@@ -80,13 +72,11 @@ def display_file_stats(
     if copied_to_clipboard:
         info_table.add_row("Status", "[green]Copied to clipboard[/green]")
 
-    # Print tables
     console.print(stats_table)
     if project_type or output_file or copied_to_clipboard:
-        console.print()  # Add a blank line
-        console.print(
-            Panel(info_table, title="Info", title_align="left", border_style="bright_black")
-        )
+        console.print()
+        panel = Panel(info_table, title="Info", title_align="left", border_style="bright_black")
+        console.print(panel)
 
 
 def display_error_summary(errors: List[Tuple[Path, str]]) -> None:

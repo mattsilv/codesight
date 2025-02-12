@@ -1,5 +1,6 @@
 {
   "python.analysis.extraPaths": ["./src"],
   "python.autoComplete.extraPaths": ["./src"],
-  "python.analysis.typeCheckingMode": "basic"
+  "python.analysis.typeCheckingMode": "basic",
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python"
 }
