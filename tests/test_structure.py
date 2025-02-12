@@ -1,23 +1,22 @@
 """Tests for the structure module."""
 
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
-import pytest
 from pathspec import PathSpec
 from pathspec.patterns.gitwildmatch import GitWildMatchPattern
 
 from codesight.structure import generate_folder_structure, get_file_group, sort_files
-
-# Constants for group comparisons
-BUILD_ARTIFACT_GROUP = 7  # dist/, build/, target/
-CONFIG_GROUP = 2  # .env, config.py
-CORE_GROUP = 1  # README.md, pyproject.toml
-DOCS_GROUP = 6  # docs/, examples/
-ENTRY_POINT_GROUP = 3  # __init__.py, main.py
-SOURCE_GROUP = 4  # src/, lib/, core/
-TEST_GROUP = 5  # test_*.py, tests/
-OTHER_GROUP = 8  # Other files
+from tests.constants import (
+    BUILD_ARTIFACT_GROUP,
+    CONFIG_GROUP,
+    CORE_GROUP,
+    DOCS_GROUP,
+    ENTRY_POINT_GROUP,
+    OTHER_GROUP,
+    SOURCE_GROUP,
+    TEST_GROUP,
+)
 
 
 def create_test_files(tmp_path: Path) -> None:
@@ -39,12 +38,11 @@ def create_test_files(tmp_path: Path) -> None:
     (tmp_path / ".gitignore").write_text("*.pyc")
 
 
-@pytest.mark.structure
 def test_generate_folder_structure(tmp_path: Path) -> None:
     """Test folder structure generation."""
     create_test_files(tmp_path)
 
-    config: Dict[str, Any] = {
+    config: dict[str, Any] = {
         "include_extensions": [".py", ".md", ".toml"],
         "exclude_files": [],
         "include_files": [".gitignore"],
@@ -54,64 +52,56 @@ def test_generate_folder_structure(tmp_path: Path) -> None:
     gitignore_spec = PathSpec.from_lines(GitWildMatchPattern, [])
     structure = generate_folder_structure(tmp_path, gitignore_spec, config)
 
-    # Print full structure for debugging
-    print("\nFull structure output:")
-    print(structure)
-
     # Check basic structure format
     assert "# Project Structure" in structure
     assert "```" in structure
 
     # Check directory indicators
-    assert "📁 src/" in structure
-    assert "📁 tests/" in structure
-    assert "📁 docs/" in structure
-    assert "📁 .git" not in structure  # Hidden directories should be excluded
-    assert "📁 .git/" not in structure  # Hidden directories should be excluded
+    assert "src/" in structure
+    assert "tests/" in structure
+    assert "docs/" in structure
 
-    # Check file emojis and ordering
-    assert "🐍 main.py" in structure  # Python files
-    assert "🐍 utils.py" in structure
-    assert "🐍 test_main.py" in structure
-    assert "⚙️ pyproject.toml" in structure  # Config files
-    assert "📝 index.md" in structure  # Documentation
+    # Check file inclusions/exclusions
+    assert "main.py" in structure
+    assert "README.md" in structure
+    assert ".gitignore" in structure
 
 
 def test_get_file_group() -> None:
     """Test file grouping logic."""
     root = Path("/test")
 
-    # Test project definition files (group 1)
-    assert get_file_group(root / "README.md", root) == 1
-    assert get_file_group(root / "pyproject.toml", root) == 1
-    assert get_file_group(root / "LICENSE", root) == 1
+    # Test project definition files (group CORE_GROUP)
+    assert get_file_group(root / "README.md", root) == CORE_GROUP
+    assert get_file_group(root / "pyproject.toml", root) == CORE_GROUP
+    assert get_file_group(root / "LICENSE", root) == CORE_GROUP
 
-    # Test config files (group 2)
-    assert get_file_group(root / ".env", root) == 2
-    assert get_file_group(root / "config.py", root) == 2
+    # Test config files (group CONFIG_GROUP)
+    assert get_file_group(root / ".env", root) == CONFIG_GROUP
+    assert get_file_group(root / "config.py", root) == CONFIG_GROUP
 
-    # Test entry points (group 3)
-    assert get_file_group(root / "src/main.py", root) == 3
-    assert get_file_group(root / "__init__.py", root) == 3
+    # Test entry points (group ENTRY_POINT_GROUP)
+    assert get_file_group(root / "src/main.py", root) == ENTRY_POINT_GROUP
+    assert get_file_group(root / "__init__.py", root) == ENTRY_POINT_GROUP
 
-    # Test core source code (group 4)
-    assert get_file_group(root / "src/lib/utils.py", root) == 4
-    assert get_file_group(root / "src/core/main.py", root) == 4
+    # Test core source code (group SOURCE_GROUP)
+    assert get_file_group(root / "src/lib/utils.py", root) == SOURCE_GROUP
+    assert get_file_group(root / "src/core/main.py", root) == SOURCE_GROUP
 
-    # Test test files (group 5)
-    assert get_file_group(root / "tests/test_main.py", root) == 5
-    assert get_file_group(root / "src/test_utils.py", root) == 5
+    # Test test files (group TEST_GROUP)
+    assert get_file_group(root / "tests/test_main.py", root) == TEST_GROUP
+    assert get_file_group(root / "src/test_utils.py", root) == TEST_GROUP
 
-    # Test documentation (group 6)
-    assert get_file_group(root / "docs/guide.md", root) == 6
-    assert get_file_group(root / "examples/demo.py", root) == 6
+    # Test documentation (group DOCS_GROUP)
+    assert get_file_group(root / "docs/guide.md", root) == DOCS_GROUP
+    assert get_file_group(root / "examples/demo.py", root) == DOCS_GROUP
 
-    # Test build outputs (group 7)
-    assert get_file_group(root / "dist/main.js", root) == 7
-    assert get_file_group(root / "build/lib.py", root) == 7
+    # Test build outputs (group BUILD_ARTIFACT_GROUP)
+    assert get_file_group(root / "dist/main.js", root) == BUILD_ARTIFACT_GROUP
+    assert get_file_group(root / "build/lib.py", root) == BUILD_ARTIFACT_GROUP
 
-    # Test other files (group 8)
-    assert get_file_group(root / "random.txt", root) == 8
+    # Test other files (group OTHER_GROUP)
+    assert get_file_group(root / "random.txt", root) == OTHER_GROUP
 
 
 def test_sort_files(tmp_path: Path) -> None:
@@ -146,7 +136,7 @@ def test_folder_structure_with_empty_dirs(tmp_path: Path) -> None:
     (tmp_path / "src").mkdir()
     (tmp_path / "src/empty").mkdir()
 
-    config: Dict[str, Any] = {
+    config: dict[str, Any] = {
         "include_extensions": [".py"],
         "exclude_files": [],
         "include_files": [],
@@ -157,8 +147,8 @@ def test_folder_structure_with_empty_dirs(tmp_path: Path) -> None:
     structure = generate_folder_structure(tmp_path, gitignore_spec, config)
 
     # Empty directories should still be shown
-    assert "📁 empty/" in structure
-    assert "📁 src/" in structure
+    assert "empty/" in structure
+    assert "src/" in structure
 
 
 def test_folder_structure_with_many_files(tmp_path: Path) -> None:
@@ -169,7 +159,7 @@ def test_folder_structure_with_many_files(tmp_path: Path) -> None:
     for i in range(5):
         (src_dir / f"file{i}.py").write_text(f"# File {i}")
 
-    config: Dict[str, Any] = {
+    config: dict[str, Any] = {
         "include_extensions": [".py"],
         "exclude_files": [],
         "include_files": [],
@@ -180,5 +170,5 @@ def test_folder_structure_with_many_files(tmp_path: Path) -> None:
     structure = generate_folder_structure(tmp_path, gitignore_spec, config)
 
     # Should show first file and indicate more
-    assert "🐍 file0.py" in structure
+    assert "file0.py" in structure
     assert "..." in structure  # Indicates more files

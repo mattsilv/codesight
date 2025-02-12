@@ -10,6 +10,73 @@ from .ignore import should_ignore
 
 logger = logging.getLogger(__name__)
 
+# File group constants
+CORE_FILES = {
+    "README.md",
+    "pyproject.toml",
+    "LICENSE",
+    "CHANGELOG.md",
+    "setup.py",
+    "setup.cfg",
+    "requirements.txt",
+}
+
+CORE_DIRS = {"core", "lib", "src"}
+TEST_INDICATORS = {"test", "tests"}
+DOC_DIRS = {"docs", "examples", "samples", "meta"}
+BUILD_DIRS = {"dist", "build", "target", "out", "bin"}
+
+# Structure generation constants
+MAX_DIRECTORY_DEPTH = 2  # Maximum depth for directory structure
+MAX_FILES_IN_DIR = 4  # Maximum files to show before truncating
+
+
+def _is_core_file(file_name: str) -> bool:
+    """Check if file is a core project file."""
+    return file_name in CORE_FILES
+
+
+def _is_config_file(file_name: str) -> bool:
+    """Check if file is a config file."""
+    return (
+        file_name.startswith(".") or file_name.endswith("config.py") or file_name.endswith(".ini")
+    )
+
+
+def _is_entry_point(file_name: str, path_parts: list[str]) -> bool:
+    """Check if file is an entry point."""
+    if file_name == "__init__.py":
+        return True
+    if file_name != "main.py":
+        return False
+    # main.py in src/ is an entry point
+    if len(path_parts) == MAX_DIRECTORY_DEPTH and path_parts[0] == "src":
+        return True
+    # main.py in other directories is an entry point if not in core directories
+    return not any(part in CORE_DIRS for part in path_parts)
+
+
+def _is_core_source(path_parts: list[str]) -> bool:
+    """Check if file is in core source directories."""
+    return any(part in CORE_DIRS for part in path_parts) and not any(
+        part.startswith("test") for part in path_parts
+    )
+
+
+def _is_test_file(file_name: str, path_parts: list[str]) -> bool:
+    """Check if file is a test file."""
+    return any(ind in file_name or ind in path_parts for ind in TEST_INDICATORS)
+
+
+def _is_documentation(path_parts: list[str]) -> bool:
+    """Check if file is documentation."""
+    return any(part in DOC_DIRS for part in path_parts)
+
+
+def _is_build_artifact(path_parts: list[str]) -> bool:
+    """Check if file is a build artifact."""
+    return any(part in BUILD_DIRS for part in path_parts)
+
 
 def generate_folder_structure(
     root_folder: Path,
@@ -44,20 +111,9 @@ def generate_folder_structure(
         # Always show directories (except hidden ones)
         if path != root_folder:
             if path.is_dir():
-                structure.append(f"{prefix}📁 {path.name}/")
+                structure.append(f"{prefix}{path.name}/")
             elif path.is_file() and should_include_path(path):
-                # Add file with appropriate emoji based on type
-                if path.suffix in [".py", ".pyi"]:
-                    icon = "🐍"  # Python files
-                elif path.suffix in [".md", ".rst"]:
-                    icon = "📝"  # Documentation
-                elif path.suffix in [".toml", ".json", ".yaml", ".yml"]:
-                    icon = "⚙️"  # Config files
-                elif path.suffix in [".js", ".ts"]:
-                    icon = "📜"  # JavaScript/TypeScript
-                else:
-                    icon = "📄"  # Other files
-                structure.append(f"{prefix}  {icon} {path.name}")
+                structure.append(f"{prefix}  {path.name}")
 
         if path.is_dir():
             # Sort directories first, then files
@@ -77,13 +133,12 @@ def generate_folder_structure(
 
             # Process files
             files = [item for item in items if item.is_file() and should_include_path(item)]
-            MAX_FILES_TO_SHOW = 4  # Show ... when we have 5 or more files
 
-            for item in files[:MAX_FILES_TO_SHOW]:
+            for item in files[:MAX_FILES_IN_DIR]:
                 add_to_structure(item, prefix + "  ")
 
-            if len(files) >= 5:
-                structure.append(f"{prefix}  ... ({len(files) - MAX_FILES_TO_SHOW} more files)")
+            if len(files) >= MAX_FILES_IN_DIR + 1:
+                structure.append(f"{prefix}  ... ({len(files) - MAX_FILES_IN_DIR} more files)")
 
     # Start from root
     add_to_structure(root_folder)
@@ -114,49 +169,21 @@ def get_file_group(file_path: Path, root: Path) -> int:
     relative_path = str(file_path.relative_to(root))
     path_parts = relative_path.split("/")
 
-    # Core project files (group 1)
-    core_files = {
-        "README.md",
-        "pyproject.toml",
-        "LICENSE",
-        "CHANGELOG.md",
-        "setup.py",
-        "setup.cfg",
-        "requirements.txt",
-    }
-    if file_path.name in core_files:
+    # Check each group in priority order
+    if _is_core_file(file_path.name):
         return 1
-
-    # Configuration and hidden files (group 2)
-    is_hidden = file_path.name.startswith(".")
-    is_config = file_path.name.endswith("config.py") or file_path.name.endswith(".ini")
-    if is_hidden or is_config:
+    if _is_config_file(file_path.name):
         return 2
-
-    # Entry points (group 3)
-    if file_path.name == "__init__.py":
+    if _is_entry_point(file_name=file_path.name, path_parts=path_parts):
         return 3
-    if file_path.name == "main.py" and not any(part in ["core", "lib"] for part in path_parts):
-        return 3
-
-    # Core source code (group 4)
-    if any(part in ["core", "lib", "src"] for part in path_parts):
-        if not any(part.startswith("test") for part in path_parts):
-            return 4
-
-    # Tests (group 5)
-    if "test" in file_path.name or "tests" in path_parts:
+    if _is_core_source(path_parts):
+        return 4
+    if _is_test_file(file_path.name, path_parts):
         return 5
-
-    # Documentation and examples (group 6)
-    if any(part in ["docs", "examples", "samples", "meta"] for part in path_parts):
+    if _is_documentation(path_parts):
         return 6
-
-    # Build artifacts (group 7)
-    if any(part in ["dist", "build", "target", "out", "bin"] for part in path_parts):
+    if _is_build_artifact(path_parts):
         return 7
-
-    # Other files (group 8)
     return 8
 
 

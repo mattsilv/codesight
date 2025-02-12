@@ -47,15 +47,22 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          poetry run pytest --cov=src/codesight --cov-branch --cov-report=xml --cov-report=term-missing tests/
+          poetry run pytest --cov=src/codesight --cov-branch --cov-report=xml --cov-report=term-missing --cov-fail-under=80 tests/
+
+      - name: Verify coverage file
+        run: |
+          ls -la coverage.xml
+          echo "Coverage file exists and has size: $(stat -f%z coverage.xml) bytes"
 
       - name: Upload coverage
         uses: codecov/codecov-action@v5
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./coverage.xml
+          files: coverage.xml
           fail_ci_if_error: true
           verbose: true
+          working-directory: .
 
       - name: Build package
         run: poetry build

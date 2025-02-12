@@ -8,6 +8,8 @@ import chardet
 import pathspec
 import tiktoken
 
+from codesight.validate import validate_config
+
 from .ignore import parse_gitignore, should_ignore
 from .structure import generate_folder_structure, sort_files
 from .transform import process_python_file
@@ -25,26 +27,46 @@ def estimate_token_length(text: str, model: str = "gpt-4") -> Optional[int]:
     try:
         encoding = tiktoken.encoding_for_model(model)
         return len(encoding.encode(text))
-    except Exception as e:
-        logger.error("Failed to estimate token length: %s", e)
+    except Exception as err:
+        logger.error("Failed to estimate token length: %s", err)
         return None
 
 
-def validate_config(config: dict[str, Any]) -> None:
-    """Validate configuration dictionary."""
-    required_keys = {"include_extensions", "exclude_files", "include_files"}
-    if not all(key in config for key in required_keys):
-        raise ValueError("Missing required configuration keys")
+def _read_file_content(file_path: Path) -> tuple[str, int]:
+    """Read file content and detect encoding."""
+    raw_content = file_path.read_bytes()
+    detected = chardet.detect(raw_content)
+    encoding = detected["encoding"] or "utf-8"
 
-    # Type checks
-    if not isinstance(config["include_extensions"], list):
-        raise ValueError("include_extensions must be a list")
-    if not isinstance(config["exclude_files"], list):
-        raise ValueError("exclude_files must be a list")
-    if not isinstance(config["include_files"], list):
-        raise ValueError("include_files must be a list")
-    if "truncate_py_literals" in config and not isinstance(config["truncate_py_literals"], int):
-        raise ValueError("truncate_py_literals must be an integer")
+    try:
+        content = raw_content.decode(encoding)
+        lines = len(content.splitlines())
+        return content, lines
+    except UnicodeDecodeError:
+        logger.warning("Failed to decode %s with %s encoding", file_path, encoding)
+        # Fallback to utf-8 with error handling
+        content = raw_content.decode("utf-8", errors="replace")
+        lines = len(content.splitlines())
+        return content, lines
+
+
+def _process_file(
+    file_path: Path, root_folder: Path, config: dict[str, Any]
+) -> Optional[tuple[str, int, bool]]:
+    """Process a single file and return its content, line count and processing status."""
+    try:
+        content, lines = _read_file_content(file_path)
+        was_processed = False
+
+        if file_path.suffix == ".py":
+            content, was_processed = process_python_file(
+                content, config.get("truncate_py_literals", 5)
+            )
+
+        return content, lines, was_processed
+    except Exception as err:
+        logger.error("Failed to process file %s: %s", file_path.relative_to(root_folder), err)
+        return None
 
 
 def gather_and_collate(
@@ -53,78 +75,38 @@ def gather_and_collate(
     gitignore_patterns: Optional[pathspec.PathSpec] = None,
 ) -> tuple[str, Optional[int], dict[str, dict[str, Any]]]:
     """Gather and collate code files from the root folder."""
-    # Validate config first
-    validate_config(config)
-
+    config = validate_config(config)
     if not root_folder.exists() or not root_folder.is_dir():
         raise ValueError(f"Root folder {root_folder} does not exist or is not a directory")
 
-    if gitignore_patterns is None:
-        gitignore_patterns = parse_gitignore(root_folder)
+    gitignore_patterns = gitignore_patterns or parse_gitignore(root_folder)
 
-    result = []
-    file_stats: dict[str, dict[str, Any]] = {}
-    skipped_files = []
+    # Generate structure first
+    structure = generate_folder_structure(root_folder, gitignore_patterns, config)
+    result = ["# Project Structure", structure]
+    file_stats = {}
 
-    # Add folder structure at the beginning
-    folder_structure = generate_folder_structure(root_folder, gitignore_patterns, config)
-    result.append(folder_structure)
+    # Get all valid files
+    all_files = [
+        f
+        for f in root_folder.rglob("*")
+        if f.is_file() and not should_ignore(f.relative_to(root_folder), config, gitignore_patterns)
+    ]
 
-    # Gather all files first
-    all_files = []
-    for file_path in root_folder.rglob("*"):
-        if not file_path.is_file():
-            continue
-
-        relative_path = file_path.relative_to(root_folder)
-        if should_ignore(relative_path, config, gitignore_patterns):
-            skipped_files.append(str(relative_path))
-            continue
-
-        all_files.append(file_path)
-
-    # Sort files in logical order
-    all_files = sort_files(all_files, root_folder)
-
-    # Process files in order
-    for file_path in all_files:
-        relative_path = file_path.relative_to(root_folder)
-        try:
-            with open(file_path, encoding="utf-8") as f:
-                content = f.read()
-                lines = content.count("\n") + 1
-        except UnicodeDecodeError:
-            logger.warning(
-                "Failed to read %s with UTF-8 encoding, attempting detection", relative_path
+    for file_path in sort_files(all_files, root_folder):
+        relative_path = str(file_path.relative_to(root_folder))
+        if processed := _process_file(file_path, root_folder, config):
+            content, lines, was_processed = processed
+            file_content = (
+                f"\n### {relative_path}\n\n```{file_path.suffix[1:] or ''}\n{content}\n```"
             )
-            with open(file_path, "rb") as f:
-                raw_content = f.read()
-                encoding = chardet.detect(raw_content)["encoding"] or "utf-8"
-            with open(file_path, encoding=encoding) as f:
-                content = f.read()
-                lines = content.count("\n") + 1
+            result.append(file_content)
 
-        was_processed = False
-        if file_path.suffix == ".py":
-            content, was_processed = process_python_file(
-                content, config.get("truncate_py_literals", 5)
-            )
-
-        # Calculate tokens for this file
-        file_content = f"```{file_path.suffix[1:] if file_path.suffix else ''}\n{content}\n```"
-        file_tokens = estimate_token_length(file_content) or 0
-
-        result.append(f"\n### {relative_path}\n\n{file_content}")
-        file_stats[str(relative_path)] = {
-            "tokens": file_tokens,
-            "lines": lines,
-            "was_processed": was_processed,
-        }
-
-    if skipped_files:
-        logger.debug("Skipped files: %s", ", ".join(skipped_files))
+            file_stats[relative_path] = {
+                "tokens": estimate_token_length(file_content) or 0,
+                "lines": lines,
+                "was_processed": was_processed,
+            }
 
     collated = "\n".join(result)
-    token_count = estimate_token_length(collated)
-
-    return collated, token_count, file_stats
+    return collated, estimate_token_length(collated), file_stats

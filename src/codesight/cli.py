@@ -1,129 +1,102 @@
 """Command-line interface for CodeSight."""
 
 import logging
+import sys
 from pathlib import Path
-from typing import Any, Optional, cast
+from typing import Optional
 
 import click
-import toml
 
-from . import __version__
-from .collate import gather_and_collate
-from .config import auto_detect_project_type, load_config
-from .reporting import copy_to_clipboard_if_requested, display_file_stats
+from codesight.auto_detect import auto_detect_project_type
+from codesight.collate import gather_and_collate
+from codesight.config import DEFAULT_CONFIG, load_config
+from codesight.ignore import parse_gitignore
+from codesight.reporting import copy_to_clipboard_if_requested, display_file_stats
+from codesight.validate import validate_config
 
 logger = logging.getLogger(__name__)
 
-
-def setup_logging(verbose: bool) -> None:
-    """Configure logging based on verbosity level."""
-    log_level = logging.DEBUG if verbose else logging.INFO
-    logging.basicConfig(
-        level=log_level,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
+# Configure logging
+logging.basicConfig(level=logging.INFO)
 
 
-def validate_output_file(
-    ctx: click.Context, param: click.Parameter, value: Optional[str]
-) -> Optional[str]:
-    """Validate output file path."""
-    if not value:
-        return None
-
-    try:
-        path = Path(value)
-        if path.exists() and not path.is_file():
-            raise click.BadParameter(f"Output path exists but is not a file: {value}")
-        return value
-    except Exception as err:
-        raise click.BadParameter(f"Invalid output file path: {value}") from err
-
-
-def validate_user_config(
-    ctx: click.Context, param: click.Parameter, value: Optional[str]
-) -> Optional[dict[str, Any]]:
-    """Load and validate user configuration file."""
-    if not value:
-        return None
-
-    try:
-        path = Path(value)
-        if not path.exists():
-            raise click.BadParameter(f"Configuration file not found: {value}")
-        if not path.is_file():
-            raise click.BadParameter(f"Configuration path is not a file: {value}")
-
-        with open(path) as f:
-            return toml.load(f)
-    except toml.TomlDecodeError as err:
-        raise click.BadParameter(f"Invalid TOML in configuration file: {value}") from err
-    except Exception as err:
-        raise click.BadParameter(f"Failed to read configuration file: {value}") from err
-
-
-@click.command()
-@click.version_option(__version__)
-@click.option(
-    "-o",
-    "--output",
-    type=str,
-    callback=validate_output_file,
-    help="Output file path (default: print to console)",
-)
-@click.option(
-    "-c",
-    "--copy",
-    is_flag=True,
-    help="Copy output to clipboard",
-)
-@click.option(
-    "-t",
-    "--type",
-    type=click.Choice(["python", "javascript"], case_sensitive=False),
-    help="Force project type (default: auto-detect)",
-)
-@click.option(
-    "-u",
-    "--user-config",
-    type=str,
-    callback=validate_user_config,
-    help="Path to user configuration file",
-)
-@click.option("-v", "--verbose", is_flag=True, help="Enable verbose logging")
-def main(
-    output: Optional[str],
-    copy: bool,
-    type: Optional[str],
-    user_config: Optional[dict[str, Any]],
-    verbose: bool,
+def analyze_command(
+    path: Path,
+    config: Optional[Path] = None,
+    output: Optional[Path] = None,
+    clipboard: bool = False,
 ) -> None:
-    """Gather and format code for LLM context."""
-    setup_logging(verbose)
-    logger.debug("Starting CodeSight %s", __version__)
+    """Generate a report analyzing the codebase.
 
+    Args:
+        path: Path to analyze
+        config: Optional path to config file
+        output: Optional path to output file
+        clipboard: Whether to copy output to clipboard
+    """
     try:
-        root_folder = Path.cwd()
-        project_type = type or auto_detect_project_type(root_folder)
-        config = load_config(project_type, user_config)
+        config_dict = dict(DEFAULT_CONFIG.copy()) if config is None else load_config(config)
+        validated_config = validate_config(config_dict)
+        gitignore_spec = parse_gitignore(path)
+        project_type = auto_detect_project_type(path)
 
-        logger.info("Processing %s project at %s", project_type, root_folder)
-        collated, token_count, file_stats = gather_and_collate(
-            root_folder, cast(dict[str, Any], config)
-        )
+        result = gather_and_collate(path, validated_config, gitignore_spec)
+        if result is None:
+            logger.error("Failed to gather files")
+            sys.exit(1)
+
+        content, token_count, file_stats = result
 
         if output:
-            try:
-                with open(output, "w") as f:
-                    f.write(collated)
-                logger.info("Output written to %s", output)
-            except Exception as err:
-                raise click.ClickException(f"Failed to write output file: {output}") from err
+            with open(output, "w", encoding="utf-8") as f:
+                f.write(content)
+        copied = copy_to_clipboard_if_requested(content, clipboard)
 
-        was_copied = copy_to_clipboard_if_requested(collated, copy)
-        display_file_stats(file_stats, token_count, output, was_copied, project_type)
+        display_file_stats(
+            file_stats=file_stats,
+            total_token_count=token_count,
+            output_file=str(output) if output else None,
+            copied_to_clipboard=copied,
+            project_type=project_type,
+        )
 
-    except Exception as err:
-        logger.debug("Error details:", exc_info=True)
-        raise click.ClickException(str(err)) from err
+    except Exception as e:
+        logger.error("Error during analysis: %s", e)
+        sys.exit(1)
+
+
+@click.command()  # type: ignore[misc]
+@click.argument(
+    "path",
+    type=click.Path(exists=True, path_type=Path),
+    default=Path("."),
+)  # type: ignore[misc]
+@click.option(
+    "--config",
+    "-c",
+    type=click.Path(exists=True, path_type=Path),
+    help="Path to configuration file",
+)  # type: ignore[misc]
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(path_type=Path),
+    help="Path to output file",
+)  # type: ignore[misc]
+@click.option(
+    "--clipboard",
+    is_flag=True,
+    help="Copy output to clipboard",
+)  # type: ignore[misc]
+def main(
+    path: Path,
+    config: Optional[Path] = None,
+    output: Optional[Path] = None,
+    clipboard: bool = False,
+) -> None:
+    """Analyze and understand your codebase with CodeSight."""
+    analyze_command(path, config, output, clipboard)
+
+
+if __name__ == "__main__":  # pragma: no cover
+    main()

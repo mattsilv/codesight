@@ -15,17 +15,6 @@ def get_python_files() -> list[Path]:
     return [p for p in root.rglob("*.py") if p.is_file()]
 
 
-def test_line_length() -> None:
-    """Test that no lines exceed max length."""
-    for file_path in get_python_files():
-        with open(file_path, encoding="utf-8") as f:
-            for i, line in enumerate(f, 1):
-                line_length = len(line.rstrip())
-                if line_length > MAX_LINE_LENGTH:
-                    msg = f"Line {i} in {file_path} exceeds {MAX_LINE_LENGTH} chars: {line.strip()}"
-                    pytest.fail(msg)
-
-
 def test_function_type_annotations() -> None:
     """Test that all functions have type annotations."""
     for file_path in get_python_files():

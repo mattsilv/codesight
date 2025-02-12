@@ -114,6 +114,8 @@ def copy_to_clipboard_if_requested(content: str, should_copy: bool) -> bool:
             return True
         except ImportError:
             logger.warning("pyperclip package not installed, clipboard copy not available")
-        except Exception as e:
-            logger.error("Failed to copy to clipboard: %s", e)
+            return False
+        except Exception as err:
+            logger.error("Failed to copy to clipboard: %s", err)
+            return False
     return False

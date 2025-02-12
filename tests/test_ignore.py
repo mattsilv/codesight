@@ -1,7 +1,7 @@
 """Tests for the ignore module."""
 
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import pathspec
 
@@ -66,7 +66,7 @@ def test_should_ignore() -> None:
         pathspec.patterns.GitWildMatchPattern, gitignore.splitlines()
     )
 
-    config: Dict[str, Any] = {
+    config: dict[str, Any] = {
         "exclude_files": ["secrets.txt"],
         "include_extensions": [".py", ".md"],
         "include_files": ["meta/README.md", "dist/important.py"],

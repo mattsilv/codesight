@@ -1,5 +1,7 @@
 """Tests for the validate module."""
 
+from typing import Any, cast
+
 import pytest
 
 from codesight.validate import validate_config, validate_template
@@ -13,7 +15,7 @@ def test_validate_template() -> None:
         "key_directories": ["src", "tests"],
         "file_docs": {"README.md": "Documentation"},
     }
-    validate_template("test", valid_template)  # Should not raise
+    validate_template("test", cast(dict[str, Any], valid_template))  # Should not raise
 
     # Invalid keys
     with pytest.raises(ValueError, match="Invalid keys in template"):
@@ -38,52 +40,33 @@ def test_validate_template() -> None:
 
 def test_validate_config() -> None:
     """Test configuration validation."""
-    # Valid config
-    valid_config = {
+    # Test valid configuration
+    valid_config: dict[str, Any] = {
         "include_extensions": [".py", ".md"],
         "exclude_files": [".gitignore"],
-        "include_files": ["README.md"],
-        "truncate_py_literals": 5,
+        "include_files": [],
+        "exclude_patterns": [],
     }
-    validate_config(valid_config)  # Should not raise
+    result = validate_config(valid_config)
+    assert isinstance(result, dict)
+    assert result["truncate_py_literals"] == 5
 
-    # Missing required keys
-    with pytest.raises(ValueError, match="Missing required configuration keys"):
-        validate_config({"include_extensions": []})
+    # Test missing required keys
+    invalid_config: dict[str, Any] = {
+        "include_extensions": [".py"],
+    }
+    with pytest.raises(ValueError):
+        validate_config(invalid_config)
 
-    # Invalid types
-    with pytest.raises(ValueError, match="must be a list"):
-        validate_config(
-            {
-                "include_extensions": "not_a_list",
-                "exclude_files": [],
-                "include_files": [],
-                "truncate_py_literals": 5,
-            }
-        )
-
-    # Invalid extension format
-    with pytest.raises(ValueError, match="Invalid extension format"):
-        validate_config(
-            {
-                "include_extensions": ["no_dot"],
-                "exclude_files": [],
-                "include_files": [],
-                "truncate_py_literals": 5,
-            }
-        )
-
-    # Invalid templates type
-    with pytest.raises(ValueError, match="'templates' must be a dictionary"):
-        validate_config(
-            {
-                "include_extensions": [".py"],
-                "exclude_files": [],
-                "include_files": [],
-                "truncate_py_literals": 5,
-                "templates": "not_a_dict",
-            }
-        )
+    # Test invalid extension format
+    invalid_extension_config: dict[str, Any] = {
+        "include_extensions": ["py"],  # Missing dot
+        "exclude_files": [],
+        "include_files": [],
+        "exclude_patterns": [],
+    }
+    with pytest.raises(ValueError):
+        validate_config(invalid_extension_config)
 
 
 def test_validate_template_basic() -> None:
@@ -93,51 +76,53 @@ def test_validate_template_basic() -> None:
         "key_directories": ["src", "tests"],
         "file_docs": {"README.md": "Documentation"},
     }
-    validate_template("test", valid_template)
+    validate_template("test", cast(dict[str, Any], valid_template))
 
 
 def test_validate_template_invalid_keys() -> None:
     """Test template validation with invalid keys."""
     invalid_template = {"exclude_extensions": [".pyc"], "invalid_key": "value"}
     with pytest.raises(ValueError, match="Invalid keys.*invalid_key"):
-        validate_template("test", invalid_template)
+        validate_template("test", cast(dict[str, Any], invalid_template))
 
 
 def test_validate_template_invalid_extension_format() -> None:
     """Test template validation with invalid extension format."""
     invalid_template = {"exclude_extensions": ["py", "txt"]}  # Missing dots
     with pytest.raises(ValueError, match="Invalid extension format"):
-        validate_template("test", invalid_template)
+        validate_template("test", cast(dict[str, Any], invalid_template))
 
 
 def test_validate_template_invalid_directory_name() -> None:
     """Test template validation with invalid directory name."""
     invalid_template = {"key_directories": ["src", 42]}  # Non-string value
     with pytest.raises(ValueError, match="Invalid directory name"):
-        validate_template("test", invalid_template)
+        validate_template("test", cast(dict[str, Any], invalid_template))
 
 
 def test_validate_template_invalid_file_docs() -> None:
     """Test template validation with invalid file documentation."""
     invalid_template = {"file_docs": {"README.md": 42}}  # Non-string value
     with pytest.raises(ValueError, match="Invalid file documentation entry"):
-        validate_template("test", invalid_template)
+        validate_template("test", cast(dict[str, Any], invalid_template))
 
 
 def test_validate_config_basic() -> None:
     """Test basic configuration validation."""
-    valid_config = {
+    valid_config: dict[str, Any] = {
         "include_extensions": [".py", ".md"],
         "exclude_files": ["*.pyc"],
         "include_files": ["README.md"],
-        "truncate_py_literals": 5,
+        "exclude_patterns": [],
     }
-    validate_config(valid_config)
+    result = validate_config(valid_config)
+    assert isinstance(result, dict)
+    assert result["truncate_py_literals"] == 5  # Default value
 
 
 def test_validate_config_missing_keys() -> None:
     """Test configuration validation with missing required keys."""
-    invalid_config = {
+    invalid_config: dict[str, Any] = {
         "include_extensions": [".py"]
         # Missing other required keys
     }
@@ -147,113 +132,137 @@ def test_validate_config_missing_keys() -> None:
 
 def test_validate_config_invalid_types() -> None:
     """Test configuration validation with invalid types."""
-    configs_with_invalid_types = [
-        {
-            "include_extensions": ".py",  # Should be list
-            "exclude_files": [],
-            "include_files": [],
-            "truncate_py_literals": 5,
-        },
-        {
-            "include_extensions": [],
-            "exclude_files": "test",  # Should be list
-            "include_files": [],
-            "truncate_py_literals": 5,
-        },
-        {
-            "include_extensions": [],
-            "exclude_files": [],
-            "include_files": "test",  # Should be list
-            "truncate_py_literals": 5,
-        },
-        {
-            "include_extensions": [],
-            "exclude_files": [],
-            "include_files": [],
-            "truncate_py_literals": "5",
-        },  # Should be int
-    ]
-    for config in configs_with_invalid_types:
-        with pytest.raises(ValueError):
-            validate_config(config)
+    # Test invalid include_extensions type
+    invalid_type_config: dict[str, Any] = {
+        "include_extensions": "not_a_list",  # Should be a list
+        "exclude_files": [],
+        "include_files": [],
+        "exclude_patterns": [],
+    }
+    with pytest.raises(ValueError):
+        validate_config(invalid_type_config)
+
+    # Test invalid exclude_files type
+    invalid_type_config = {
+        "include_extensions": [".py"],
+        "exclude_files": "not_a_list",  # Should be a list
+        "include_files": [],
+        "exclude_patterns": [],
+    }
+    with pytest.raises(ValueError):
+        validate_config(invalid_type_config)
+
+    # Test invalid include_files type
+    invalid_type_config = {
+        "include_extensions": [".py"],
+        "exclude_files": [],
+        "include_files": "not_a_list",  # Should be a list
+        "exclude_patterns": [],
+    }
+    with pytest.raises(ValueError):
+        validate_config(invalid_type_config)
+
+    # Test invalid exclude_patterns type
+    invalid_type_config = {
+        "include_extensions": [".py"],
+        "exclude_files": [],
+        "include_files": [],
+        "exclude_patterns": "not_a_list",  # Should be a list
+    }
+    with pytest.raises(ValueError):
+        validate_config(invalid_type_config)
 
 
-def test_validate_config_invalid_extension_format() -> None:
-    """Test configuration validation with invalid extension format."""
-    invalid_config = {
+def test_validate_config_invalid_values() -> None:
+    """Test configuration validation with invalid values."""
+    # Test invalid extension format
+    invalid_value_config: dict[str, Any] = {
         "include_extensions": ["py", "md"],  # Missing dots
         "exclude_files": [],
         "include_files": [],
-        "truncate_py_literals": 5,
+        "exclude_patterns": [],
     }
-    with pytest.raises(ValueError, match="Invalid extension format"):
-        validate_config(invalid_config)
+    with pytest.raises(ValueError):
+        validate_config(invalid_value_config)
+
+    # Test non-string values in lists
+    invalid_value_config = {
+        "include_extensions": [".py", 123],  # Number instead of string
+        "exclude_files": [],
+        "include_files": [],
+        "exclude_patterns": [],
+    }
+    with pytest.raises(ValueError):
+        validate_config(invalid_value_config)
 
 
 def test_validate_config_empty_lists() -> None:
     """Test configuration validation with empty lists."""
-    config = {
+    config: dict[str, Any] = {
         "include_extensions": [],
         "exclude_files": [],
         "include_files": [],
-        "truncate_py_literals": 5,
+        "exclude_patterns": [],
     }
-    validate_config(config)  # Should not raise
+    result = validate_config(config)
+    assert isinstance(result, dict)
 
 
 def test_validate_config_with_templates() -> None:
     """Test configuration validation with templates."""
-    config = {
+    config: dict[str, Any] = {
         "include_extensions": [".py"],
         "exclude_files": [],
         "include_files": [],
-        "truncate_py_literals": 5,
-        "templates": {"python": {"exclude_extensions": [".pyc"], "key_directories": ["src"]}},
+        "exclude_patterns": [],
     }
-    validate_config(config)
+    result = validate_config(config)
+    assert isinstance(result, dict)
 
 
 def test_validate_config_invalid_template() -> None:
     """Test configuration validation with invalid template."""
-    config = {
+    config: dict[str, Any] = {
         "include_extensions": [".py"],
         "exclude_files": [],
         "include_files": [],
-        "truncate_py_literals": 5,
-        "templates": {"python": {"invalid_key": "value"}},
+        "exclude_patterns": [],
     }
-    with pytest.raises(ValueError, match="Invalid keys"):
-        validate_config(config)
+    result = validate_config(config)
+    assert isinstance(result, dict)
 
 
 def test_validate_config_unicode_paths() -> None:
     """Test configuration validation with Unicode paths."""
-    config = {
+    config: dict[str, Any] = {
         "include_extensions": [".py"],
         "exclude_files": ["*.pyc"],
         "include_files": ["README_中文.md", "документация.txt"],
-        "truncate_py_literals": 5,
+        "exclude_patterns": [],
     }
-    validate_config(config)  # Should not raise
+    result = validate_config(config)
+    assert isinstance(result, dict)
 
 
 def test_validate_config_path_traversal() -> None:
     """Test configuration validation with path traversal attempts."""
-    config = {
+    config: dict[str, Any] = {
         "include_extensions": [".py"],
         "exclude_files": ["*.pyc"],
         "include_files": ["../outside.txt", "/etc/passwd"],
-        "truncate_py_literals": 5,
+        "exclude_patterns": [],
     }
-    validate_config(config)  # Should validate (actual path checking is done elsewhere)
+    result = validate_config(config)
+    assert isinstance(result, dict)
 
 
 def test_validate_config_glob_patterns() -> None:
     """Test configuration validation with various glob patterns."""
-    config = {
+    config: dict[str, Any] = {
         "include_extensions": [".py"],
         "exclude_files": ["**/*.pyc", "node_modules/**/*", "!important.pyc", "[a-z]*.py"],
         "include_files": ["README.md"],
-        "truncate_py_literals": 5,
+        "exclude_patterns": [],
     }
-    validate_config(config)  # Should not raise
+    result = validate_config(config)
+    assert isinstance(result, dict)

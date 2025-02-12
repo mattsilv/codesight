@@ -2,7 +2,8 @@
 
 from pathlib import Path
 
-from codesight.config import auto_detect_project_type, merge_configs
+from codesight.auto_detect import auto_detect_project_type
+from codesight.config import merge_configs
 
 
 def test_auto_detect_project_type(tmp_path: Path) -> None:

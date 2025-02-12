@@ -23,9 +23,27 @@ file_docs = { "pyproject.toml" = "Project configuration" }
 """
 
 import logging
-from typing import Any
+from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
+
+REQUIRED_CONFIG_KEYS = {
+    "include_extensions",
+    "exclude_files",
+    "include_files",
+    "exclude_patterns",
+}
+
+# Default configuration values
+DEFAULT_INCLUDE_EXTENSIONS: list[str] = [".py", ".md", ".rst"]
+DEFAULT_EXCLUDE_FILES: list[str] = ["*.pyc", "node_modules/*"]
+DEFAULT_INCLUDE_FILES: list[str] = ["README.md", "pyproject.toml"]
+DEFAULT_EXCLUDE_PATTERNS: list[str] = []
+
+# Default configuration
+DEFAULT_CONFIG = {
+    "truncate_py_literals": 5,
+}
 
 
 def validate_template(name: str, template: dict[str, Any]) -> None:
@@ -93,27 +111,42 @@ def validate_template(name: str, template: dict[str, Any]) -> None:
                 )
 
 
-def validate_config(config: dict[str, Any]) -> None:
-    """Validate configuration structure and values.
+def _validate_list_field(
+    config: dict[str, Any],
+    field_name: str,
+    example: str,
+    item_validator: Callable[[Any], bool] | None = None,
+) -> None:
+    """Validate a list field in the configuration.
 
     Args:
-        config: Configuration dictionary to validate
-
-    Raises:
-        ValueError: With detailed message if configuration is invalid
-
-    Required configuration keys:
-        - include_extensions: List of file extensions to include (e.g. [".py", ".md"])
-        - exclude_files: List of files or patterns to exclude (e.g. ["*.pyc"])
-        - include_files: List of files to always include (e.g. ["README.md"])
-        - truncate_py_literals: Integer for max elements in Python literals
-
-    Optional configuration keys:
-        - templates: Dictionary of project type templates
-        - exclude_patterns: Additional glob patterns to exclude
-        - key_directories: List of important directories to focus on
+        config: Configuration dictionary
+        field_name: Name of the field to validate
+        example: Example of valid configuration
+        item_validator: Optional function to validate individual items
     """
-    required_keys = {"include_extensions", "exclude_files", "include_files", "truncate_py_literals"}
+    if not isinstance(config.get(field_name), list):
+        raise ValueError(f"'{field_name}' must be a list\n" f"Example: {example}")
+
+    if item_validator and field_name in config:
+        for item in config[field_name]:
+            if not item_validator(item):
+                raise ValueError(f"Invalid item in {field_name}: {item}\n" f"Example: {example}")
+
+
+def _validate_extension(ext: Any) -> bool:
+    """Validate a file extension."""
+    return isinstance(ext, str) and ext.startswith(".")
+
+
+def _validate_required_keys(config: dict[str, Any]) -> None:
+    """Validate that all required keys are present."""
+    required_keys = {
+        "include_extensions",
+        "exclude_files",
+        "include_files",
+        "exclude_patterns",
+    }
     missing_keys = required_keys - set(config.keys())
     if missing_keys:
         raise ValueError(
@@ -122,39 +155,20 @@ def validate_config(config: dict[str, Any]) -> None:
             '- include_extensions: List of file extensions (e.g. [".py", ".md"])\n'
             '- exclude_files: List of files to exclude (e.g. ["*.pyc"])\n'
             '- include_files: List of files to include (e.g. ["README.md"])\n'
-            "- truncate_py_literals: Max elements in Python literals (e.g. 5)"
+            '- exclude_patterns: List of patterns to exclude (e.g. ["*.pyc"])'
         )
 
-    if not isinstance(config.get("include_extensions"), list):
-        raise ValueError(
-            "'include_extensions' must be a list of file extensions\n"
-            'Example: include_extensions = [".py", ".md", ".rst"]'
-        )
 
-    if not isinstance(config.get("exclude_files"), list):
-        raise ValueError(
-            "'exclude_files' must be a list of file patterns\n"
-            'Example: exclude_files = ["*.pyc", "node_modules/*"]'
-        )
-
-    if not isinstance(config.get("include_files"), list):
-        raise ValueError(
-            "'include_files' must be a list of file paths\n"
-            'Example: include_files = ["README.md", "pyproject.toml"]'
-        )
-
+def _validate_truncate_py_literals(config: dict[str, Any]) -> None:
+    """Validate truncate_py_literals field."""
     if not isinstance(config.get("truncate_py_literals"), int):
         raise ValueError(
             "'truncate_py_literals' must be an integer\n" "Example: truncate_py_literals = 5"
         )
 
-    for ext in config.get("include_extensions", []):
-        if not isinstance(ext, str) or not ext.startswith("."):
-            raise ValueError(
-                f"Invalid extension format: {ext}\n"
-                "Extensions must be strings starting with '.', e.g. '.py'"
-            )
 
+def _validate_templates(config: dict[str, Any]) -> None:
+    """Validate templates configuration if present."""
     if "templates" in config:
         if not isinstance(config["templates"], dict):
             raise ValueError(
@@ -166,3 +180,37 @@ def validate_config(config: dict[str, Any]) -> None:
         for template_name, template_config in config["templates"].items():
             logger.debug("Validating template: %s", template_name)
             validate_template(template_name, template_config)
+
+
+def validate_config(config: dict[str, Any]) -> dict[str, Any]:
+    """Validate the configuration dictionary.
+
+    Args:
+        config: Configuration dictionary to validate
+
+    Returns:
+        Validated configuration dictionary
+
+    Raises:
+        ValueError: If configuration is invalid
+    """
+    # Check required keys
+    _validate_required_keys(config)
+
+    # Validate types and values
+    for key in REQUIRED_CONFIG_KEYS:
+        value = config.get(key, [])
+        if not isinstance(value, list):
+            raise ValueError(f"{key} must be a list")
+        if not all(isinstance(item, str) for item in value):
+            raise ValueError(f"All items in {key} must be strings")
+
+    # Validate extension format
+    for ext in config.get("include_extensions", []):
+        if not isinstance(ext, str) or not ext.startswith("."):
+            raise ValueError(f"Extension must be a string starting with dot: {ext}")
+
+    # Merge with defaults
+    result = DEFAULT_CONFIG.copy()
+    result.update(config)
+    return result

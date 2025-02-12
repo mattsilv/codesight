@@ -20,6 +20,8 @@ See the [CHANGELOG](CHANGELOG.md) for full details.
 
 ## See it in Action
 
+<div align="center">
+
 ![Sample CodeSight Report](docs/assets/sample-report.png)
 _A clean, organized summary of your codebase with file statistics and token counts_
 
@@ -28,6 +30,8 @@ _Automatically generated project structure for better context_
 
 ![Sample Code View](docs/assets/sample-code.png)
 _Neatly formatted code snippets with syntax highlighting_
+
+</div>
 
 With a single command (`codesight`), it:
 
@@ -51,34 +55,40 @@ pip install codesight
 
 ## Quick Start
 
-Basic usage (auto-detects project type):
+Basic usage (analyzes current directory):
 
 ```bash
 codesight
 ```
 
-Force a specific project type:
-
-```bash
-codesight -t python
-```
-
 Use custom configuration:
 
 ```bash
-codesight -u .codesight_config.toml
+codesight -c .codesight_config.toml
+```
+
+Save output to file:
+
+```bash
+codesight -o output.txt
 ```
 
 Copy output to clipboard:
 
 ```bash
-codesight -c
+codesight --clipboard
 ```
 
-Get detailed logging:
+For more options:
 
 ```bash
-codesight -v
+codesight --help
+```
+
+You can also specify a different directory to analyze:
+
+```bash
+codesight path/to/project
 ```
 
 ## Configuration
