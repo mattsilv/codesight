@@ -9,6 +9,16 @@ from pathspec.patterns.gitwildmatch import GitWildMatchPattern
 
 from codesight.structure import generate_folder_structure, get_file_group, sort_files
 
+# Constants for group comparisons
+BUILD_ARTIFACT_GROUP = 7  # dist/, build/, target/
+CONFIG_GROUP = 2  # .env, config.py
+CORE_GROUP = 1  # README.md, pyproject.toml
+DOCS_GROUP = 6  # docs/, examples/
+ENTRY_POINT_GROUP = 3  # __init__.py, main.py
+SOURCE_GROUP = 4  # src/, lib/, core/
+TEST_GROUP = 5  # test_*.py, tests/
+OTHER_GROUP = 8  # Other files
+
 
 def create_test_files(tmp_path: Path) -> None:
     """Create a test file structure."""
@@ -44,6 +54,10 @@ def test_generate_folder_structure(tmp_path: Path) -> None:
     gitignore_spec = PathSpec.from_lines(GitWildMatchPattern, [])
     structure = generate_folder_structure(tmp_path, gitignore_spec, config)
 
+    # Print full structure for debugging
+    print("\nFull structure output:")
+    print(structure)
+
     # Check basic structure format
     assert "# Project Structure" in structure
     assert "```" in structure
@@ -52,7 +66,8 @@ def test_generate_folder_structure(tmp_path: Path) -> None:
     assert "📁 src/" in structure
     assert "📁 tests/" in structure
     assert "📁 docs/" in structure
-    assert ".git" not in structure  # Hidden directories should be excluded
+    assert "📁 .git" not in structure  # Hidden directories should be excluded
+    assert "📁 .git/" not in structure  # Hidden directories should be excluded
 
     # Check file emojis and ordering
     assert "🐍 main.py" in structure  # Python files

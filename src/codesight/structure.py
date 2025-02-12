@@ -18,60 +18,72 @@ def generate_folder_structure(
 ) -> str:
     """Generate a tree-like folder structure of the project."""
     structure = ["# Project Structure\n```"]
-    seen_dirs: set[str] = set()
 
     def should_include_path(path: Path) -> bool:
         """Check if path should be included in structure."""
         if not path.exists():
             return False
-        if path.name.startswith("."):  # Exclude hidden files/directories
+        # Skip .git directory and its contents
+        if ".git" in path.parts:
+            return False
+        if path.name.startswith(".") and path.name != ".gitignore":  # Allow .gitignore
             return False
         relative_path = path.relative_to(root_folder)
-        if should_ignore(relative_path, config, gitignore_spec):
-            return False
-        return True
+        return not should_ignore(relative_path, config, gitignore_spec)
 
     def add_to_structure(path: Path, prefix: str = "") -> None:
         """Recursively add directories to structure."""
-        if not should_include_path(path):
+        # Skip hidden directories and .git
+        if (
+            path != root_folder
+            and path.is_dir()
+            and (path.name.startswith(".") or ".git" in path.parts)
+        ):
             return
 
-        relative_path = str(path.relative_to(root_folder))
-        if relative_path in seen_dirs:
-            return
-        seen_dirs.add(relative_path)
-
-        if path.is_dir():
-            # Skip if it's just a root directory
-            if path != root_folder:
+        # Always show directories (except hidden ones)
+        if path != root_folder:
+            if path.is_dir():
                 structure.append(f"{prefix}📁 {path.name}/")
-
-            # Sort directories first, then files
-            items = sorted(path.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower()))
-
-            # Process directories first
-            dirs = [item for item in items if item.is_dir() and should_include_path(item)]
-            for item in dirs:
-                add_to_structure(item, prefix + "  ")
-
-            # Then show one example file and indicate if there are more
-            files = [item for item in items if item.is_file() and should_include_path(item)]
-            if files:
-                example_file = files[0]
+            elif path.is_file() and should_include_path(path):
                 # Add file with appropriate emoji based on type
-                if example_file.suffix in [".py", ".pyi"]:
+                if path.suffix in [".py", ".pyi"]:
                     icon = "🐍"  # Python files
-                elif example_file.suffix in [".md", ".rst"]:
+                elif path.suffix in [".md", ".rst"]:
                     icon = "📝"  # Documentation
-                elif example_file.suffix in [".toml", ".json", ".yaml", ".yml"]:
+                elif path.suffix in [".toml", ".json", ".yaml", ".yml"]:
                     icon = "⚙️"  # Config files
-                elif example_file.suffix in [".js", ".ts"]:
+                elif path.suffix in [".js", ".ts"]:
                     icon = "📜"  # JavaScript/TypeScript
                 else:
                     icon = "📄"  # Other files
-                structure.append(f"{prefix}  {icon} {example_file.name}")
-                if len(files) > 1:
-                    structure.append(f"{prefix}  ...")
+                structure.append(f"{prefix}  {icon} {path.name}")
+
+        if path.is_dir():
+            # Sort directories first, then files
+            items = sorted(path.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower()))
+
+            # Filter out hidden directories and .git
+            items = [
+                item
+                for item in items
+                if not (item.is_dir() and (item.name.startswith(".") or ".git" in item.parts))
+            ]
+
+            # Process directories
+            dirs = [item for item in items if item.is_dir()]
+            for item in dirs:
+                add_to_structure(item, prefix + "  ")
+
+            # Process files
+            files = [item for item in items if item.is_file() and should_include_path(item)]
+            MAX_FILES_TO_SHOW = 4  # Show ... when we have 5 or more files
+
+            for item in files[:MAX_FILES_TO_SHOW]:
+                add_to_structure(item, prefix + "  ")
+
+            if len(files) >= 5:
+                structure.append(f"{prefix}  ... ({len(files) - MAX_FILES_TO_SHOW} more files)")
 
     # Start from root
     add_to_structure(root_folder)
