@@ -15,6 +15,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cache/pip
+            ~/.cache/poetry
+          key: ${{ runner.os }}-cargo-poetry-${{ hashFiles('**/Cargo.lock', '**/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-poetry-
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
