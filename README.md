@@ -173,9 +173,29 @@ CodeSight organizes files into priority groups for better context:
 7. Build artifacts
 8. Other files
 
-## Development
+## Contributing to CodeSight
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
+If you're interested in contributing to the CodeSight project:
+
+1. Fork and clone the repository:
+
+```bash
+git clone https://github.com/mattsilv/codesight.git
+cd codesight
+poetry install
+```
+
+2. Run development commands with Poetry:
+
+```bash
+# Run tests
+poetry run pytest tests/
+
+# Try CodeSight on itself
+poetry run codesight . -o codesight_source.txt
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed development setup and guidelines.
 
 ## License
 
