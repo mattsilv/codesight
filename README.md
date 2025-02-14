@@ -43,7 +43,7 @@ With a single command (`codesight`), it:
 This is particularly useful when:
 
 - You're stuck in a complex debugging loop in Cursor or your IDE
-- You need to escalate to a more powerful model like GPT-4 or Claude
+- You need to escalate to a more powerful model like gpt o3-mini-high or o1-pro
 - You want to get a second opinion on your code from a different LLM
 - You need to share your codebase context with an AI assistant quickly
 

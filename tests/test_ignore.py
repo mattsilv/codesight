@@ -3,8 +3,8 @@
 from pathlib import Path
 from typing import Any
 
-import pathspec
-from pathspec.patterns.gitwildmatch import GitWildMatchPattern  # type: ignore[attr-defined]
+from pathspec import PathSpec
+from pathspec.patterns.gitwildmatch import GitWildMatchPattern
 
 from codesight.ignore import parse_gitignore, should_ignore
 
@@ -63,7 +63,7 @@ def test_should_ignore() -> None:
 *.pyc
 /dist/
 """
-    spec = pathspec.PathSpec.from_lines(GitWildMatchPattern, gitignore.splitlines())
+    spec = PathSpec.from_lines(GitWildMatchPattern, gitignore.splitlines())
 
     config: dict[str, Any] = {
         "exclude_files": ["secrets.txt"],
