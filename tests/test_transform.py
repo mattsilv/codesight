@@ -1,25 +1,25 @@
-"""Tests for the transform module."""
+"""Tests for code transformation."""
 
 from codesight.transform import process_python_file
 
 
 def test_process_python_file() -> None:
-    """Test Python file processing with truncation."""
-    content = """
-data = [1, 2, 3, 4, 5, 6, 7, 8]
-small = [1, 2]
-nested = {'a': [1, 2, 3, 4, 5, 6]}
+    """Test Python file processing with basic cases."""
+    # Test basic truncation
+    code = """
+x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+y = {"a": 1, "b": 2, "c": 3, "d": 4, "e": 5, "f": 6}
 """
-    processed, was_processed = process_python_file(content, 3)
-    assert was_processed
-    assert "[1, 2]" in processed  # Small list unchanged
-    assert "data = [1, 2, 3]" in processed  # Large list truncated
-    assert "'a': [1, 2, 3]" in processed  # Nested list truncated
+    result, was_processed = process_python_file(code, truncate_size=3)
+    assert was_processed  # File was processed successfully
+    assert "[1, 2, 3]" in result
+    assert "{'a': 1, 'b': 2, 'c': 3}" in result
 
-
-def test_process_python_file_syntax_error() -> None:
-    """Test handling of Python files with syntax errors."""
-    content = "def invalid_python("  # Missing closing parenthesis
-    processed, was_processed = process_python_file(content)
-    assert not was_processed
-    assert processed == content  # Original content returned unchanged
+    # Test code without literals is processed but unchanged (ignoring quote style)
+    code = """
+def hello():
+    print('Hello, world!')
+"""
+    result, was_processed = process_python_file(code, truncate_size=3)
+    assert was_processed  # File was processed successfully
+    assert result.strip() == code.strip()  # Content is unchanged

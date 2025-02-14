@@ -12,26 +12,40 @@ logger = logging.getLogger(__name__)
 class CodeSightConfig(TypedDict):
     """Type definition for CodeSight configuration."""
 
-    include_extensions: list[str]
-    exclude_files: list[str]
-    include_files: list[str]
-    exclude_patterns: list[str]
-    truncate_py_literals: int
+    include_extensions: list[str]  # File extensions to include
+    include_files: list[str]  # Files to explicitly include
+    truncate_py_literals: int  # Max elements in Python literals
 
 
 DEFAULT_CONFIG: CodeSightConfig = {
-    "include_extensions": [".py", ".md", ".rst", ".toml"],
-    "exclude_files": [".gitignore", "*.pyc", "node_modules/*"],
-    "include_files": ["README.md", "pyproject.toml"],
-    "exclude_patterns": [],
+    # Common development file types
+    "include_extensions": [
+        ".py",  # Python source
+        ".js",  # JavaScript source
+        ".ts",  # TypeScript source
+        ".jsx",  # React components
+        ".tsx",  # TypeScript React
+        ".md",  # Documentation
+        ".rst",  # Python docs
+        ".yaml",  # Configuration
+        ".yml",  # Configuration
+        ".toml",  # Configuration
+        ".json",  # Configuration/data
+    ],
+    # Important config files that might start with a dot
+    "include_files": [
+        ".pre-commit-config.yaml",
+        ".flake8",
+        ".eslintrc",
+        ".prettierrc",
+        "package.json",
+        "pyproject.toml",
+        "README.md",
+        "CHANGELOG.md",
+        "LICENSE",
+    ],
+    # Default truncation for large data structures
     "truncate_py_literals": 5,
-}
-
-REQUIRED_CONFIG_KEYS = {
-    "include_extensions",
-    "exclude_files",
-    "include_files",
-    "exclude_patterns",
 }
 
 

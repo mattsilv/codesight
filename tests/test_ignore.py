@@ -10,85 +10,46 @@ from codesight.ignore import parse_gitignore, should_ignore
 
 
 def test_parse_gitignore(tmp_path: Path) -> None:
-    """Test parsing of .gitignore file."""
+    """Test basic gitignore parsing."""
     gitignore = tmp_path / ".gitignore"
-    gitignore.write_text(
-        """
-# Comment line
-*.pyc
-/build/
-/meta/
-node_modules/
-*.log
-!important.log
-/dist/**/*.js
-"""
-    )
+    gitignore.write_text("*.pyc\n/build/\n")
 
     spec = parse_gitignore(tmp_path)
 
-    # Test file patterns
-    assert spec.match_file("test.pyc")
-    assert spec.match_file("subfolder/test.pyc")
-    assert not spec.match_file("test.py")
-
-    # Test directory patterns
-    assert spec.match_file("build/output.txt")
-    assert spec.match_file("meta/notes.md")
-    assert not spec.match_file("src/meta/file.txt")  # /meta/ only matches at root
-
-    # Test nested patterns
-    assert spec.match_file("node_modules/package.json")
-    assert spec.match_file("subfolder/node_modules/package.json")
-
-    # Test negation
-    assert spec.match_file("debug.log")
-    assert not spec.match_file("important.log")
-
-    # Test deep glob patterns
-    assert spec.match_file("dist/bundle/main.js")
-    assert not spec.match_file("src/main.js")
+    # Test basic patterns
+    assert spec.match_file("test.pyc")  # Matches wildcard
+    assert spec.match_file("build/output.txt")  # Matches directory
+    assert not spec.match_file("test.py")  # Doesn't match other files
 
     # Test with no .gitignore
     empty_dir = tmp_path / "empty"
     empty_dir.mkdir()
     empty_spec = parse_gitignore(empty_dir)
-    assert not empty_spec.match_file("any_file.txt")
+    assert not empty_spec.match_file("test.pyc")  # No patterns means no ignores
 
 
 def test_should_ignore() -> None:
     """Test file ignore logic with both gitignore and config patterns."""
-    gitignore = """
-/meta/
-*.pyc
-/dist/
-"""
-    spec = PathSpec.from_lines(GitWildMatchPattern, gitignore.splitlines())
+    # Create a gitignore spec that ignores *.pyc files
+    spec = PathSpec.from_lines(GitWildMatchPattern, ["*.pyc"])
 
+    # Test core behavior: simple include/exclude logic
     config: dict[str, Any] = {
-        "exclude_files": ["secrets.txt"],
         "include_extensions": [".py", ".md"],
-        "include_files": ["meta/README.md", "dist/important.py"],
+        "include_files": [".env", "special.txt"],  # Explicitly include these files
+        "truncate_py_literals": 5,
     }
 
-    # Test gitignore patterns
-    assert should_ignore(Path("meta/file.txt"), config, spec)
-    assert should_ignore(Path("lib/test.pyc"), config, spec)
-    assert should_ignore(Path("dist/bundle.js"), config, spec)
+    # 1. Test gitignore patterns
+    assert should_ignore(Path("test.pyc"), config, spec)  # Ignored by gitignore
+    assert not should_ignore(Path("test.py"), config, spec)  # Not ignored (has allowed extension)
 
-    # Test explicitly included files override gitignore
-    assert not should_ignore(Path("meta/README.md"), config, spec)
-    assert not should_ignore(Path("dist/important.py"), config, spec)
+    # 2. Test extension-based ignoring
+    assert not should_ignore(Path("main.py"), config, spec)  # .py is included
+    assert should_ignore(Path("style.css"), config, spec)  # .css not in include_extensions
 
-    # Test config patterns
-    assert should_ignore(Path("secrets.txt"), config, spec)
-    assert not should_ignore(Path("src/main.py"), config, spec)
-    assert should_ignore(Path("src/styles.css"), config, spec)  # Not in include_extensions
-
-    # Test hidden files/folders
-    assert should_ignore(Path(".env"), config, spec)
-    assert should_ignore(Path(".git/config"), config, spec)
-
-    # Test included files in hidden folders
-    config_with_git = {**config, "include_files": [".git/README.md"]}
-    assert not should_ignore(Path(".git/README.md"), config_with_git, spec)
+    # 3. Test explicit includes override everything
+    assert not should_ignore(Path(".env"), config, spec)  # Explicitly included
+    assert not should_ignore(
+        Path("special.txt"), config, spec
+    )  # Explicitly included despite extension

@@ -49,11 +49,23 @@ This is particularly useful when:
 
 ## Installation
 
+For users:
+
 ```bash
 pip install codesight
 ```
 
+For developers:
+
+```bash
+git clone https://github.com/mattsilv/codesight.git
+cd codesight
+poetry install
+```
+
 ## Quick Start
+
+### Using CodeSight as a Tool
 
 Basic usage (analyzes current directory):
 
@@ -73,22 +85,19 @@ Save output to file:
 codesight -o output.txt
 ```
 
-Copy output to clipboard:
+### Developing CodeSight
+
+When working on CodeSight itself, use Poetry to run commands:
 
 ```bash
-codesight --clipboard
-```
+# Run tests
+poetry run pytest tests/
 
-For more options:
+# Run CodeSight on a project
+poetry run codesight
 
-```bash
-codesight --help
-```
-
-You can also specify a different directory to analyze:
-
-```bash
-codesight path/to/project
+# Run CodeSight on itself
+poetry run codesight . -o codesight_source.txt
 ```
 
 ## Configuration
