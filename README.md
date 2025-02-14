@@ -8,7 +8,7 @@
 
 CodeSight is a developer tool designed to enhance your LLM-powered coding experience. When you're stuck in a complex debugging session or need help understanding a codebase, CodeSight makes it easy to get assistance from powerful LLMs like ChatGPT, Claude, or other AI models.
 
-## What's New in 0.1.3
+## What's New in 0.1.32
 
 - **Improved File Organization**: Enhanced file grouping logic with 8 distinct categories for better code organization
 - **Better Error Messages**: Configuration validation now provides clear, actionable error messages
@@ -22,13 +22,16 @@ See the [CHANGELOG](CHANGELOG.md) for full details.
 
 <div align="center">
 
-![Sample CodeSight Report](https://raw.githubusercontent.com/mattsilv/codesight/main/docs/assets/sample-report.png)
+<img src="https://raw.githubusercontent.com/mattsilv/codesight/main/docs/assets/sample-report.png" width="70%" alt="Sample CodeSight Report"/>
+
 _A clean, organized summary of your codebase with file statistics and token counts_
 
-![Sample Structure View](https://raw.githubusercontent.com/mattsilv/codesight/main/docs/assets/sample-structure.png)
+<img src="https://raw.githubusercontent.com/mattsilv/codesight/main/docs/assets/sample-structure.png" width="70%" alt="Sample Structure View"/>
+
 _Automatically generated project structure for better context_
 
-![Sample Code View](https://raw.githubusercontent.com/mattsilv/codesight/main/docs/assets/sample-code.png)
+<img src="https://raw.githubusercontent.com/mattsilv/codesight/main/docs/assets/sample-code.png" width="70%" alt="Sample Code View"/>
+
 _Neatly formatted code snippets with syntax highlighting_
 
 </div>
@@ -46,6 +49,10 @@ This is particularly useful when:
 - You need to escalate to a more powerful model like gpt o3-mini-high or o1-pro
 - You want to get a second opinion on your code from a different LLM
 - You need to share your codebase context with an AI assistant quickly
+
+## About the Creator
+
+CodeSight was created by Matt Silverman, a developer focused on enhancing the AI-powered coding experience. To learn more about Matt and his journey in AI development, visit [silv.blog/about](https://silv.blog/about).
 
 ## Installation
 
