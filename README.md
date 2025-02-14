@@ -2,13 +2,13 @@
 
 [![CI](https://github.com/mattsilv/codesight/actions/workflows/ci.yml/badge.svg)](https://github.com/mattsilv/codesight/actions/workflows/ci.yml)
 [![PyPI version](https://badge.fury.io/py/codesight.svg)](https://badge.fury.io/py/codesight)
-[![Python Version](https://img.shields.io/pypi/pyversions/codesight)](https://pypi.org/project/codesight/)
+[![Python Version](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/release/python-3120/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![codecov](https://codecov.io/gh/mattsilv/codesight/branch/main/graph/badge.svg)](https://codecov.io/gh/mattsilv/codesight)
 
 CodeSight is a developer tool designed to enhance your LLM-powered coding experience. When you're stuck in a complex debugging session or need help understanding a codebase, CodeSight makes it easy to get assistance from powerful LLMs like ChatGPT, Claude, or other AI models.
 
-## What's New in 0.1.1
+## What's New in 0.1.3
 
 - **Improved File Organization**: Enhanced file grouping logic with 8 distinct categories for better code organization
 - **Better Error Messages**: Configuration validation now provides clear, actionable error messages
@@ -22,13 +22,13 @@ See the [CHANGELOG](CHANGELOG.md) for full details.
 
 <div align="center">
 
-![Sample CodeSight Report](docs/assets/sample-report.png)
+![Sample CodeSight Report](https://raw.githubusercontent.com/mattsilv/codesight/main/docs/assets/sample-report.png)
 _A clean, organized summary of your codebase with file statistics and token counts_
 
-![Sample Structure View](docs/assets/sample-structure.png)
+![Sample Structure View](https://raw.githubusercontent.com/mattsilv/codesight/main/docs/assets/sample-structure.png)
 _Automatically generated project structure for better context_
 
-![Sample Code View](docs/assets/sample-code.png)
+![Sample Code View](https://raw.githubusercontent.com/mattsilv/codesight/main/docs/assets/sample-code.png)
 _Neatly formatted code snippets with syntax highlighting_
 
 </div>
