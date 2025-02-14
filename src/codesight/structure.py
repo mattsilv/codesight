@@ -1,34 +1,41 @@
-"""Functions for handling project structure and file organization."""
+"""Functions for file structure and organization."""
 
 import logging
 from pathlib import Path
-from typing import Any
 
 import pathspec
+
+from codesight.config import CodeSightConfig
 
 from .ignore import should_ignore
 
 logger = logging.getLogger(__name__)
 
-# File group constants
+# Maximum number of files to show per directory
+MAX_FILES_IN_DIR = 10
+
+# Core source code directories
+CORE_DIRS = {"src", "lib", "core"}
+
+# Test directories and indicators
+TEST_INDICATORS = {"test", "tests", "test_"}
+
+# Documentation directories
+DOC_DIRS = {"docs", "doc", "documentation", "examples", "meta"}
+
+# Build artifact directories
+BUILD_DIRS = {"dist", "build", "target", "out"}
+
+# Core project files
 CORE_FILES = {
     "README.md",
+    "README.rst",
     "pyproject.toml",
+    "setup.py",
+    "package.json",
     "LICENSE",
     "CHANGELOG.md",
-    "setup.py",
-    "setup.cfg",
-    "requirements.txt",
 }
-
-CORE_DIRS = {"core", "lib", "src"}
-TEST_INDICATORS = {"test", "tests"}
-DOC_DIRS = {"docs", "examples", "samples", "meta"}
-BUILD_DIRS = {"dist", "build", "target", "out", "bin"}
-
-# Structure generation constants
-MAX_DIRECTORY_DEPTH = 2  # Maximum depth for directory structure
-MAX_FILES_IN_DIR = 4  # Maximum files to show before truncating
 
 
 def _is_core_file(file_name: str) -> bool:
@@ -45,15 +52,11 @@ def _is_config_file(file_name: str) -> bool:
 
 def _is_entry_point(file_name: str, path_parts: list[str]) -> bool:
     """Check if file is an entry point."""
-    if file_name == "__init__.py":
-        return True
-    if file_name != "main.py":
-        return False
-    # main.py in src/ is an entry point
-    if len(path_parts) == MAX_DIRECTORY_DEPTH and path_parts[0] == "src":
-        return True
-    # main.py in other directories is an entry point if not in core directories
-    return not any(part in CORE_DIRS for part in path_parts)
+    return (
+        file_name == "__init__.py"
+        or file_name == "main.py"
+        and not any(part in CORE_DIRS for part in path_parts)
+    )
 
 
 def _is_core_source(path_parts: list[str]) -> bool:
@@ -81,39 +84,22 @@ def _is_build_artifact(path_parts: list[str]) -> bool:
 def generate_folder_structure(
     root_folder: Path,
     gitignore_spec: pathspec.PathSpec,
-    config: dict[str, Any],
+    config: CodeSightConfig,
 ) -> str:
     """Generate a tree-like folder structure of the project."""
-    structure = ["# Project Structure\n```"]
+    structure = ["```"]
 
     def should_include_path(path: Path) -> bool:
         """Check if path should be included in structure."""
-        if not path.exists():
-            return False
-        # Skip .git directory and its contents
-        if ".git" in path.parts:
-            return False
-        if path.name.startswith(".") and path.name != ".gitignore":  # Allow .gitignore
-            return False
         relative_path = path.relative_to(root_folder)
         return not should_ignore(relative_path, config, gitignore_spec)
 
     def add_to_structure(path: Path, prefix: str = "") -> None:
         """Recursively add directories to structure."""
-        # Skip hidden directories and .git
-        if (
-            path != root_folder
-            and path.is_dir()
-            and (path.name.startswith(".") or ".git" in path.parts)
-        ):
-            return
-
-        # Always show directories (except hidden ones)
-        if path != root_folder:
-            if path.is_dir():
-                structure.append(f"{prefix}{path.name}/")
-            elif path.is_file() and should_include_path(path):
-                structure.append(f"{prefix}  {path.name}")
+        if path == root_folder:
+            structure.append(path.name or str(path))
+        else:
+            structure.append(f"{prefix}└── {path.name}")
 
         if path.is_dir():
             # Sort directories first, then files

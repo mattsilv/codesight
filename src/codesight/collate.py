@@ -2,12 +2,13 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 import chardet
 import pathspec
 import tiktoken
 
+from codesight.config import CodeSightConfig
 from codesight.validate import validate_config
 
 from .ignore import parse_gitignore, should_ignore
@@ -51,7 +52,7 @@ def _read_file_content(file_path: Path) -> tuple[str, int]:
 
 
 def _process_file(
-    file_path: Path, root_folder: Path, config: dict[str, Any]
+    file_path: Path, root_folder: Path, config: CodeSightConfig
 ) -> Optional[tuple[str, int, bool]]:
     """Process a single file and return its content, line count and processing status."""
     try:
@@ -71,11 +72,10 @@ def _process_file(
 
 def gather_and_collate(
     root_folder: Path,
-    config: dict[str, Any],
+    config: CodeSightConfig,
     gitignore_patterns: Optional[pathspec.PathSpec] = None,
 ) -> tuple[str, Optional[int], dict[str, dict[str, Any]]]:
     """Gather and collate code files from the root folder."""
-    config = validate_config(config)
     if not root_folder.exists() or not root_folder.is_dir():
         raise ValueError(f"Root folder {root_folder} does not exist or is not a directory")
 

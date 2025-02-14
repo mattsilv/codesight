@@ -14,7 +14,7 @@ truncate_py_literals = 5
 """
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 from .config import DEFAULT_CONFIG, CodeSightConfig
 

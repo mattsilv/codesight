@@ -3,13 +3,13 @@
 import logging
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Optional, cast
 
 import click
 
 from codesight.auto_detect import auto_detect_project_type
 from codesight.collate import gather_and_collate
-from codesight.config import DEFAULT_CONFIG, load_config
+from codesight.config import DEFAULT_CONFIG, CodeSightConfig, load_config
 from codesight.ignore import parse_gitignore
 from codesight.reporting import copy_to_clipboard_if_requested, display_file_stats
 from codesight.validate import validate_config
@@ -35,8 +35,11 @@ def analyze_command(
         clipboard: Whether to copy output to clipboard
     """
     try:
-        config_dict = dict(DEFAULT_CONFIG.copy()) if config is None else load_config(config)
-        validated_config = validate_config(config_dict)
+        # Load and validate config
+        raw_config = load_config(config) if config else dict(DEFAULT_CONFIG)
+        validated_config = validate_config(raw_config)
+
+        # Setup and analyze
         gitignore_spec = parse_gitignore(path)
         project_type = auto_detect_project_type(path)
 
@@ -47,6 +50,7 @@ def analyze_command(
 
         content, token_count, file_stats = result
 
+        # Handle output
         if output:
             with open(output, "w", encoding="utf-8") as f:
                 f.write(content)

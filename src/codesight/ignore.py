@@ -2,9 +2,10 @@
 
 import logging
 from pathlib import Path
-from typing import Any
 
 import pathspec
+
+from codesight.config import CodeSightConfig
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ def parse_gitignore(root_folder: Path) -> pathspec.PathSpec:
     return pathspec.PathSpec.from_lines("gitwildmatch", patterns)
 
 
-def should_ignore(path: Path, config: dict[str, Any], gitignore_spec: pathspec.PathSpec) -> bool:
+def should_ignore(path: Path, config: CodeSightConfig, gitignore_spec: pathspec.PathSpec) -> bool:
     """Check if a file should be ignored. Simple order of operations:
 
     1. If file is in include_files list -> INCLUDE

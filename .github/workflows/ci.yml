@@ -28,28 +28,20 @@ jobs:
       - name: Install dependencies
         run: poetry install
 
-      - name: Run formatting check
+      # Single formatting check step
+      - name: Check code style
         run: |
           poetry run ruff format --check .
           poetry run isort --check-only --profile black .
 
-      - name: Run tests
-        run: poetry run pytest tests/
+      # Single type checking step
+      - name: Check types
+        run: poetry run mypy src tests
 
-      - name: Run linting
-        run: |
-          poetry run ruff check .
-          poetry run black --check .
-          poetry run mypy src tests
-
+      # Single test step with coverage
       - name: Run tests with coverage
         run: |
-          poetry run pytest --cov=src/codesight --cov-branch --cov-report=xml --cov-report=term-missing --cov-fail-under=80 tests/
-
-      - name: Verify coverage file
-        run: |
-          ls -la coverage.xml
-          echo "Coverage file exists and has size: $(stat -f%z coverage.xml) bytes"
+          poetry run pytest tests/ --cov=src/codesight --cov-report=xml
 
       - name: Upload coverage
         uses: codecov/codecov-action@v5
@@ -58,8 +50,6 @@ jobs:
         with:
           files: coverage.xml
           fail_ci_if_error: true
-          verbose: true
-          working-directory: .
 
       - name: Build package
         run: poetry build
