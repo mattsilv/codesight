@@ -15,17 +15,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ~/.cache/pip
-            ~/.cache/poetry
-          key: ${{ runner.os }}-cargo-poetry-${{ hashFiles('**/Cargo.lock', '**/poetry.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-poetry-
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -36,19 +25,16 @@ jobs:
         with:
           version: 1.7.1
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Clean environment
-        run: |
-          rm -rf codesight/*.py  # Remove any legacy files
-          rm -rf build/ dist/ *.egg-info/  # Clean build artifacts
-          find . -type d -name __pycache__ -exec rm -rf {} +
-
       - name: Install dependencies
+        run: poetry install
+
+      - name: Run formatting check
         run: |
-          poetry install
-          poetry run pip list  # Log installed packages for debugging
+          poetry run ruff-format --check .
+          poetry run isort --check-only --profile black .
+
+      - name: Run tests
+        run: poetry run pytest tests/
 
       - name: Run linting
         run: |

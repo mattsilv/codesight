@@ -3,13 +3,13 @@ name: Release
 on:
   push:
     tags:
-      - "v*" # Run only on version tags
+      - "v*"
 
 jobs:
   release:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Needed for creating releases
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -23,45 +23,6 @@ jobs:
         with:
           version: 1.7.1
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Clean environment
-        run: |
-          rm -rf codesight/*.py  # Remove any legacy files
-          rm -rf build/ dist/ *.egg-info/  # Clean build artifacts
-          find . -type d -name __pycache__ -exec rm -rf {} +
-
-      - name: Install dependencies
-        run: |
-          poetry install
-          poetry run pip list  # Log installed packages for debugging
-
-      - name: Run linting
-        run: |
-          poetry run ruff check .
-          poetry run black --check .
-          poetry run mypy src tests
-
-      - name: Run tests with coverage
-        run: |
-          poetry run pytest --cov=src/codesight --cov-branch --cov-report=xml --cov-report=term-missing tests/
-
-      - name: Verify coverage file
-        run: |
-          ls -la coverage.xml
-          echo "Coverage file exists and has size: $(stat -f%z coverage.xml) bytes"
-
-      - name: Upload coverage
-        uses: codecov/codecov-action@v5
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-        with:
-          files: coverage.xml
-          fail_ci_if_error: true
-          verbose: true
-          working-directory: .
-
       - name: Build package
         run: poetry build
 
@@ -73,6 +34,4 @@ jobs:
           files: |
             dist/*.whl
             dist/*.tar.gz
-          draft: false
-          prerelease: false
           generate_release_notes: true
