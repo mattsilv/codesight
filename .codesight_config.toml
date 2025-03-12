@@ -1,5 +1,0 @@
-# Custom configuration for analyzing CodeSight's source code
-include_extensions = [".py", ".md", ".rst", ".toml", ".yaml", ".yml"]  # Include all relevant files
-truncate_py_literals = 10  # Show more elements in literals for better readability
-include_files = [".flake8", ".pre-commit-config.yaml"]  # Include hidden config files
-exclude_patterns = []  # Clear any default exclude patterns

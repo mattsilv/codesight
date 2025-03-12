@@ -1,0 +1,12 @@
+.codesight/
+.specstory/
+.venv/
+.vscode/
+.pytest_cache/
+__pycache__/
+*.py[cod]
+*$py.class
+test_project/
+test_project_direct/
+*.n
+

@@ -1,0 +1,15 @@
+{
+  "version": "0.1.4",
+  "projectName": "My CodeSight Project",
+  "settings": {
+    "visualization": {
+      "style": "modern",
+      "colorScheme": "default"
+    },
+    "analysis": {
+      "depth": 3,
+      "include_comments": true,
+      "include_docstrings": true
+    }
+  }
+}

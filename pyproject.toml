@@ -1,77 +1,59 @@
-[tool.poetry]
-name = "codesight"
-version = "0.1.32"
-description = "A tool for collating code and generating LLM context"
-authors = ["Matt Silverman"]
-license = "MIT"
-readme = "README.md"
-homepage = "https://github.com/mattsilv/codesight"
-repository = "https://github.com/mattsilv/codesight"
-documentation = "https://github.com/mattsilv/codesight#readme"
-keywords = ["llm", "code", "collation", "gpt", "context", "python"]
-classifiers = [
-    "Development Status :: 4 - Beta",
-    "Environment :: Console",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3.12",
-    "Topic :: Software Development :: Libraries :: Python Modules",
-    "Typing :: Typed",
-]
-packages = [{include = "codesight", from = "src"}]
-
-[tool.poetry.dependencies]
-python = "^3.12"
-chardet = "^5.2.0"
-tiktoken = "^0.5.2"
-pathspec = "^0.12.1"
-click = "^8.1.7"
-pyperclip = "^1.8.2"
-toml = "^0.10.2"
-rich = "^13.7.0"
-
-[tool.poetry.group.dev.dependencies]
-pytest = "^7.4.4"
-black = "^24.1.1"
-isort = "^5.13.2"
-mypy = "^1.8.0"
-ruff = "^0.9.6"
-flake8 = "^7.0.0"
-flake8-docstrings = "^1.7.0"
-types-toml = "^0.10.8"
-types-PyYAML = "^6.0.12"
-pytest-cov = "^6.0.0"
-
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
-[tool.poetry.scripts]
+[project]
+name = "codesight"
+version = "0.1.4"
+description = "CodeSight - Code analysis and visualization tool"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Matt Silverman", email = "mattsilverman@example.com"},
+]
+dependencies = [
+    "requests>=2.28.0",
+    "click>=8.1.3",
+    "tiktoken>=0.5.0",
+    "rich>=13.4.0",
+    "pandas>=2.0.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "black>=23.0.0",
+    "pre-commit>=3.3.2",
+    # Add your dev dependencies here
+]
+
+[project.scripts]
 codesight = "codesight.cli:main"
 
-[tool.mypy]
-python_version = "3.12"
-strict = true
+[project.urls]
+Homepage = "https://github.com/mattsilv/codesight"
+Issues = "https://github.com/mattsilv/codesight/issues"
 
-[[tool.mypy.overrides]]
-module = "pyperclip"
-ignore_missing_imports = true
+[tool.hatch.build.targets.wheel]
+packages = ["codesight"]
 
-[tool.black]
-line-length = 100
-target-version = ['py39']
-include = '\.pyi?$'
+[tool.hatch.build.targets.sdist]
+include = [
+    "codesight",
+    "README.md",
+    "LICENSE",
+]
 
-[tool.isort]
-profile = "black"
-line_length = 100
-multi_line_output = 3
-include_trailing_comma = true
-
-[tool.ruff]
-line-length = 100
-target-version = "py39"
-
-[tool.ruff.lint]
-select = ["E", "F", "B", "I"]
-ignore = ["E501"]
+[tool.hatch.build]
+include = [
+    "codesight/**/*.py",
+    "codesight/templates/*",
+]
+exclude = [
+    "**/__pycache__",
+    "**/.pytest_cache",
+    ".codesight",
+    "test_project",
+    "test_project_direct",
+] 
