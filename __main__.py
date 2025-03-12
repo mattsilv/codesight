@@ -4,20 +4,17 @@ Main entry point for CodeSight.
 When run directly as a script, this file provides CLI functionality.
 For proper package use, use 'codesight' command after installation.
 """
-import os
-import argparse
 import sys
-from pathlib import Path
-
-# Import modules from the codesight package
 from codesight import cli
-from codesight import config
-from codesight import core
-from codesight import terminal
-from codesight import exclusions
+from codesight import __version__
 
 def main():
     """Main entry point for the CodeSight tool"""
+    # Handle --version flag specifically
+    if len(sys.argv) > 1 and sys.argv[1] == "--version":
+        print(f"codesight version {__version__}")
+        return
+        
     # Use the CLI from the codesight package
     cli.main()
 
