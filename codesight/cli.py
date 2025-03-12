@@ -12,6 +12,7 @@ from . import config
 from . import core
 
 @click.group()
+@click.version_option()
 def main():
     """CodeSight: Code analysis and visualization tool."""
     pass
