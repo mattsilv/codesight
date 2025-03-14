@@ -11,14 +11,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - name: Set up Python 3.12
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.12'
-    - name: Install dependencies
+    - name: Make scripts executable
       run: |
-        python -m pip install --upgrade pip
-        pip install -e .
-    - name: Test installation
+        chmod +x ./codesight.sh
+        chmod +x ./install.sh
+        find ./commands -name "*.sh" -exec chmod +x {} \;
+        find ./utils -name "*.sh" -exec chmod +x {} \;
+    - name: Run help command
       run: |
-        python -m codesight --help
+        ./codesight.sh help
+    - name: Test initialization
+      run: |
+        ./codesight.sh init
+        test -d ./.codesight || exit 1
+    - name: Check version
+      run: |
+        ./codesight.sh | grep -q "CodeSight version" || exit 1

@@ -1,28 +1,51 @@
-name: Publish to PyPI
+name: Release
 
 on:
   release:
     types: [published]
 
 jobs:
-  deploy:
+  release:
     runs-on: ubuntu-latest
-    environment:
-      name: pypi
-      url: https://pypi.org/p/codesight
-    permissions:
-      id-token: write
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Install dependencies
+      - name: Set up environment
         run: |
-          python -m pip install --upgrade pip
-          pip install hatch
-      - name: Build package
-        run: hatch build
-      - name: Publish package distributions to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+          chmod +x ./codesight.sh
+          chmod +x ./install.sh
+          find ./commands -name "*.sh" -exec chmod +x {} \;
+          find ./utils -name "*.sh" -exec chmod +x {} \;
+      
+      - name: Verify version matches release
+        run: |
+          TAG_VERSION=$(echo ${{ github.ref_name }} | sed 's/^v//')
+          SCRIPT_VERSION=$(grep -o 'VERSION="[^"]*"' ./codesight.sh | cut -d'"' -f2)
+          
+          if [ "$TAG_VERSION" != "$SCRIPT_VERSION" ]; then
+            echo "Error: Version mismatch. Tag version is $TAG_VERSION but script version is $SCRIPT_VERSION"
+            exit 1
+          else
+            echo "✅ Version verified: $SCRIPT_VERSION"
+          fi
+          
+      - name: Create release archive
+        run: |
+          RELEASE_NAME="codesight-${{ github.ref_name }}"
+          mkdir -p $RELEASE_NAME
+          
+          # Check for LICENSE file
+          if [ -f LICENSE ]; then
+            cp -r codesight.sh commands/ utils/ config.sh install.sh setup_alias.sh README.md LICENSE docs/ $RELEASE_NAME/
+          else
+            cp -r codesight.sh commands/ utils/ config.sh install.sh setup_alias.sh README.md docs/ $RELEASE_NAME/
+          fi
+          
+          tar -czf "${RELEASE_NAME}.tar.gz" $RELEASE_NAME
+          zip -r "${RELEASE_NAME}.zip" $RELEASE_NAME
+          
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            codesight-${{ github.ref_name }}.tar.gz
+            codesight-${{ github.ref_name }}.zip
