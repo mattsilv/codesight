@@ -1,44 +1,51 @@
 #!/bin/bash
-
-# Simple installation script for CodeSight
-
-# Ensure any error stops the script
-set -e
+# Installation script for CodeSight
 
 echo "Installing CodeSight..."
 
-# Check if Python is installed
-if ! command -v python3 &> /dev/null; then
-    echo "Error: Python 3 is required but not installed. Please install Python 3 and try again."
-    exit 1
-fi
+# Get script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Check if pip is installed
-if ! command -v pip &> /dev/null; then
-    echo "Error: pip is required but not installed. Please install pip and try again."
-    exit 1
-fi
+# Create directory structure
+mkdir -p "$SCRIPT_DIR/commands"
+mkdir -p "$SCRIPT_DIR/utils"
+mkdir -p "$SCRIPT_DIR/docs"
 
-# Install CodeSight from PyPI
-pip install codesight
+# Check all script files and make them executable
+find "$SCRIPT_DIR" -name "*.sh" -type f -exec chmod +x {} \;
 
-# Test if the command is available
-if ! command -v codesight &> /dev/null; then
-    echo "Warning: The codesight command isn't available in PATH."
-    echo "You might need to restart your terminal or add your Python bin directory to PATH."
-    
-    # Get the Python user base directory
-    PYTHON_USER_BIN=$(python3 -c "import site; print(site.USER_BASE + '/bin')")
-    echo "You can try running it from: $PYTHON_USER_BIN/codesight"
-else
-    echo "CodeSight installed successfully!"
-    echo "Try running 'codesight init' to initialize a new project."
+# Create the full command path
+FULL_COMMAND="$SCRIPT_DIR/codesight.sh"
+
+echo "Installation complete!"
+echo ""
+echo "You can run CodeSight from any directory using this command:"
+echo "$FULL_COMMAND"
+echo ""
+
+# Copy to clipboard if possible
+if command -v pbcopy &>/dev/null || command -v xclip &>/dev/null || command -v clip.exe &>/dev/null; then
+    if command -v pbcopy &>/dev/null; then
+        echo "$FULL_COMMAND" | pbcopy
+    elif command -v xclip &>/dev/null; then
+        echo "$FULL_COMMAND" | xclip -selection clipboard
+    elif command -v clip.exe &>/dev/null; then
+        echo "$FULL_COMMAND" | clip.exe
+    fi
+    echo "✅ Command copied to clipboard"
 fi
 
 echo ""
-echo "Usage Guide:"
-echo "1. Go to your project directory: cd your-project-directory"
-echo "2. Initialize CodeSight: codesight init"
-echo "3. Analyze your codebase: codesight analyze"
-echo "4. Find the generated file: .codesight/codebase_overview.txt"
-echo "5. Copy this file content and paste it into your LLM for code review!"
+echo "Would you like to set up an alias for easier use? (y/n)"
+read -r setup_alias
+
+if [[ "$setup_alias" == "y" || "$setup_alias" == "Y" ]]; then
+    # Run the setup_alias script
+    "$SCRIPT_DIR/setup_alias.sh"
+else
+    echo ""
+    echo "You can set up an alias later by running:"
+    echo "./setup_alias.sh"
+    echo ""
+    echo "See README.md and docs/setup_guide.md for more details"
+fi
