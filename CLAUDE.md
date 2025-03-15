@@ -1,7 +1,7 @@
 # CodeSight - Developer Guide
 
 ## Version
-Current version: 1.0.0
+Current version: 0.1.5
 
 ## Commands
 - `./codesight.sh init` - Initialize in current directory
