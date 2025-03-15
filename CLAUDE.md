@@ -6,6 +6,7 @@ Current version: 0.1.5
 ## Commands
 - `./codesight.sh init` - Initialize in current directory
 - `./codesight.sh analyze [directory]` - Analyze codebase (default: current dir)
+- `./codesight.sh visualize [type]` - Visualize codebase statistics
 - `./codesight.sh info` - Display configuration information
 - `./codesight.sh help` - Show help message
 

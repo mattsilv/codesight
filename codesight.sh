@@ -21,6 +21,10 @@ source "$SCRIPT_DIR/commands/init.sh"
 source "$SCRIPT_DIR/commands/analyze.sh"
 source "$SCRIPT_DIR/commands/info.sh"
 source "$SCRIPT_DIR/commands/help.sh"
+source "$SCRIPT_DIR/commands/visualize.sh"
+
+# Source visualization utilities
+source "$SCRIPT_DIR/utils/visualize/files_report.sh"
 
 # Display help information
 function show_help() {
@@ -421,6 +425,9 @@ function main() {
             ;;
         help)
             show_help
+            ;;
+        visualize)
+            visualize_command "$@"
             ;;
         version)
             echo "CodeSight version $VERSION"
