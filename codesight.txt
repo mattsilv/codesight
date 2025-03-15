@@ -1,0 +1,6 @@
+# PROJECT OVERVIEW
+Files included: 69
+Extensions: .py .js .jsx .ts .tsx .html .css .scss .md .json .toml .yaml .yml
+Generated: Fri Mar 14 19:45:33 EDT 2025
+
+# FILE TYPES
