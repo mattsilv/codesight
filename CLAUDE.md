@@ -4,6 +4,7 @@
 Current version: 0.1.5
 
 ## Commands
+- `./codesight.sh` - Analyze codebase in current directory (shortcut for analyze)
 - `./codesight.sh init` - Initialize in current directory
 - `./codesight.sh analyze [directory]` - Analyze codebase (default: current dir)
 - `./codesight.sh visualize [type]` - Visualize codebase statistics

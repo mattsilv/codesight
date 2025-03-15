@@ -369,44 +369,9 @@ fi # Close the if false
 # Main function
 function main() {
     if [[ $# -eq 0 ]]; then
-        # No command provided - run default action
-        echo "🚀 Running CodeSight..."
-        
-        # Check if already initialized
-        if [[ ! -d "$CURRENT_DIR/.codesight" ]]; then
-            echo "📂 Directory not initialized. Setting up CodeSight..."
-            init_project
-            
-            if [[ $? -ne 0 ]]; then
-                echo "❌ Initialization failed. Please check errors above."
-                exit 1
-            fi
-            
-            echo "✅ Initialization complete."
-        fi
-        
-        # Run analyze with default settings
-        echo "🔍 Analyzing codebase..."
-        local output_file="$CURRENT_DIR/codesight.txt"
+        # No command provided - default to analyze on current directory
+        echo "🔍 Running CodeSight analyze on current directory..."
         analyze_codebase
-        
-        # Ensure the user knows what happened
-        echo ""
-        echo "✨ CodeSight process complete!"
-        echo "📄 Output file: $output_file"
-        
-        # Confirm clipboard status
-        if command -v pbcopy &>/dev/null; then
-            echo "📋 Results copied to clipboard (macOS)"
-        elif command -v xclip &>/dev/null; then
-            echo "📋 Results copied to clipboard (Linux)"
-        elif command -v clip.exe &>/dev/null; then
-            echo "📋 Results copied to clipboard (Windows)"
-        else
-            echo "⚠️ Could not copy to clipboard - no clipboard tool found"
-            echo "   Please manually copy the contents of the output file."
-        fi
-        
         exit 0
     fi
     

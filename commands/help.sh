@@ -11,6 +11,8 @@ function show_help() {
     echo "  info                   Display information about the configuration"
     echo "  help                   Show this help message"
     echo ""
+    echo "Note: Running './codesight.sh' with no command will default to 'analyze'"
+    echo ""
     echo "Options for analyze:"
     echo "  --output FILE          Specify output file (default: .codesight/codebase_overview.txt)"
     echo "  --extensions \"EXT...\"  Space-separated list of file extensions (e.g. \".py .js .md\")"
