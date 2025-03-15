@@ -13,10 +13,21 @@ function is_binary_file() {
     fi
 }
 
-# Clean content for output
+# Clean content for output - aggressive token reduction
 function clean_content() {
-    # Remove trailing whitespace and normalize line endings
-    sed 's/[ \t]*$//' | tr -d '\r'
+    # Process input to reduce token usage:
+    # - Remove trailing whitespace and normalize line endings
+    # - Remove empty lines
+    # - Remove comments (C, C++, Python, Bash)
+    # - Collapse multiple spaces to single space
+    # - Remove common import/require statements
+    # - Remove excessive blank lines
+    sed 's/[ \t]*$//' | tr -d '\r' | \
+    sed '/^\s*$/d' | \
+    sed -e 's/\/\/.*$//' -e 's/\/\*.*\*\///' -e 's/^\s*#.*$//' | \
+    sed 's/  */ /g' | \
+    sed -e '/^\s*import /d' -e '/^\s*from .* import/d' -e '/^\s*require(/d' | \
+    sed '/./,/^$/!d'
 }
 
 # Create directory if it doesn't exist

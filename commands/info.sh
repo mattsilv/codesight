@@ -15,6 +15,21 @@ function show_info() {
     if [[ -f "$CURRENT_DIR/.codesight/config" ]]; then
         echo "Configuration:"
         grep -v "^#" "$CURRENT_DIR/.codesight/config" | grep -v "^$" | sed 's/^/  /'
+        
+        echo ""
+        echo "File Selection Settings:"
+        echo "  RESPECT_GITIGNORE: ${RESPECT_GITIGNORE:-true}"
+        
+        echo ""
+        echo "Token Optimization Settings:"
+        echo "  ENABLE_ULTRA_COMPACT_FORMAT: ${ENABLE_ULTRA_COMPACT_FORMAT:-false}"
+        echo "  REMOVE_COMMENTS: ${REMOVE_COMMENTS:-true}"
+        echo "  REMOVE_EMPTY_LINES: ${REMOVE_EMPTY_LINES:-true}"
+        echo "  REMOVE_IMPORTS: ${REMOVE_IMPORTS:-false}"
+        echo "  ABBREVIATE_HEADERS: ${ABBREVIATE_HEADERS:-false}"
+        echo "  TRUNCATE_PATHS: ${TRUNCATE_PATHS:-false}"
+        echo "  MINIMIZE_METADATA: ${MINIMIZE_METADATA:-false}"
+        echo "  SHORT_DATE_FORMAT: ${SHORT_DATE_FORMAT:-true}"
     else
         echo "  No configuration file found"
     fi

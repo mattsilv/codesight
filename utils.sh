@@ -15,35 +15,35 @@ is_binary_file() {
     fi
 }
 
-# Clean content to reduce token usage
+# Clean content to reduce token usage - configurable token reduction
 clean_content() {
-    # Read from stdin and clean content
+    # Process input to reduce token usage but preserve key information based on configuration:
+    # - Remove trailing whitespace and normalize line endings (always done)
+    # - Remove comments (C, C++, Python, Bash) if REMOVE_COMMENTS=true
+    # - Remove empty lines if REMOVE_EMPTY_LINES=true
+    # - Collapse multiple spaces to single space (always done)
+    # - Remove common import/require statements if REMOVE_IMPORTS=true
     
-    # Remove C-style comments
-    sed -e 's/\/\*[^*]*\*\+([^/*][^*]*\*\+)*\///' |
+    # Start with basic cleaning (always performed)
+    local SED_SCRIPT="s/[ \t]*$// ; s/  */ /g"
     
-    # Remove C++ style comments
-    sed -e 's/\/\/.*$//' |
+    # Add comment removal if configured
+    if [[ "$REMOVE_COMMENTS" == "true" ]]; then
+        SED_SCRIPT="$SED_SCRIPT ; s/\/\*[^*]*\*\+([^/*][^*]*\*\+)*\/// ; s/\/\/.*$// ; s/^#[^!].*$//"
+    fi
     
-    # Remove Python/shell comments
-    sed -e 's/#.*$//' |
+    # Add empty line removal if configured
+    if [[ "$REMOVE_EMPTY_LINES" == "true" ]]; then
+        SED_SCRIPT="$SED_SCRIPT ; /^\s*$/d"
+    fi
     
-    # Remove trailing whitespace
-    sed -e 's/[ \t]*$//' |
+    # Add import/require removal if configured
+    if [[ "$REMOVE_IMPORTS" == "true" ]]; then
+        SED_SCRIPT="$SED_SCRIPT ; /^\s*import /d ; /^\s*from .* import/d ; /^\s*require(/d ; /^\s*@/d"
+    fi
     
-    # Collapse multiple empty lines into one
-    sed -e '/^$/N;/^\n$/D' |
-    
-    # Remove import statements
-    sed -e '/^\s*import /d' |
-    sed -e '/^\s*from .* import/d' |
-    sed -e '/^\s*require(/d' |
-    
-    # Remove decorators
-    sed -e '/^\s*@/d' |
-    
-    # Final trim
-    sed -e '/./,$!d' -e :a -e '/^\n*$/{$d;N;ba' -e '}'
+    # Apply all configured cleaning operations
+    sed -e "$SED_SCRIPT"
 }
 
 # Calculate approximate token count
@@ -104,101 +104,4 @@ format_time_ago() {
             echo "$days days ago"
         fi
     fi
-}
-
-# Check if a path should be excluded based on patterns
-should_exclude() {
-    local path="$1"
-    local filename=$(basename "$path")
-    
-    # Check excluded files
-    for pattern in "${EXCLUDED_FILES[@]}"; do
-        if [[ "$filename" == $pattern ]]; then
-            return 0
-        fi
-    done
-    
-    # Check excluded folders
-    for folder in "${EXCLUDED_FOLDERS[@]}"; do
-        if [[ "$path" == *"$folder"* ]]; then
-            return 0
-        fi
-    done
-    
-    # Not excluded
-    return 1
-}
-
-# Convert file extension to language name (for code blocks)
-extension_to_language() {
-    local ext="$1"
-    
-    case "$ext" in
-        .py)
-            echo "python"
-            ;;
-        .js)
-            echo "javascript"
-            ;;
-        .jsx)
-            echo "jsx"
-            ;;
-        .ts)
-            echo "typescript"
-            ;;
-        .tsx)
-            echo "tsx"
-            ;;
-        .html)
-            echo "html"
-            ;;
-        .css)
-            echo "css"
-            ;;
-        .scss)
-            echo "scss"
-            ;;
-        .json)
-            echo "json"
-            ;;
-        .md)
-            echo "markdown"
-            ;;
-        .sh)
-            echo "bash"
-            ;;
-        .yml|.yaml)
-            echo "yaml"
-            ;;
-        .rb)
-            echo "ruby"
-            ;;
-        .java)
-            echo "java"
-            ;;
-        .php)
-            echo "php"
-            ;;
-        .go)
-            echo "go"
-            ;;
-        .rs)
-            echo "rust"
-            ;;
-        .cs)
-            echo "csharp"
-            ;;
-        .cpp|.cc|.cxx)
-            echo "cpp"
-            ;;
-        .c)
-            echo "c"
-            ;;
-        .h|.hpp)
-            echo "cpp"
-            ;;
-        *)
-            echo "text"
-            ;;
-    esac
 }

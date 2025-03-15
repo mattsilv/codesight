@@ -1,6 +1,1544 @@
-# PROJECT OVERVIEW
-Files included: 69
-Extensions: .py .js .jsx .ts .tsx .html .css .scss .md .json .toml .yaml .yml
-Generated: Fri Mar 14 19:45:33 EDT 2025
+# CodeSight Analysis
+# Files: 19
+# Extensions: .py .js .jsx .ts .tsx .html .css .scss .md .json .toml .yaml .yml .sh
+# Generated: 2025-03-14 22:15:57
 
-# FILE TYPES
+# File types:
+# - .md: 3
+# - .sh: 14
+# - .yml: 2
+
+# File: .github/workflows/ci.yml
+# Words:       90 | Lines:       27 | Modified: 250314
+```
+name: CI
+on:
+ push:
+ branches: [ main ]
+ pull_request:
+ branches: [ main ]
+jobs:
+ test:
+ runs-on: ubuntu-lates
+ steps:
+ - uses: actions/checkout@v4
+ - name: Make scripts executable
+ run: |
+ chmod +x ./codesight.sh
+ chmod +x ./install.sh
+ find ./commands -name "*.sh" -exec chmod +x {} \;
+ find ./utils -name "*.sh" -exec chmod +x {} \;
+ - name: Run help command
+ run: |
+ ./codesight.sh help
+ - name: Test initialization
+ run: |
+ ./codesight.sh ini
+ test -d ./.codesight || exit 1
+ - name: Check version
+ run: |
+ ./codesight.sh | grep -q "CodeSight version" || exit 1
+```
+
+# File: .github/workflows/publish.yml
+# Words:      170 | Lines:       43 | Modified: 250314
+```
+name: Release
+on:
+ release:
+ types: [published]
+jobs:
+ release:
+ runs-on: ubuntu-lates
+ steps:
+ - uses: actions/checkout@v4
+ - name: Set up environmen
+ run: |
+ chmod +x ./codesight.sh
+ chmod +x ./install.sh
+ find ./commands -name "*.sh" -exec chmod +x {} \;
+ find ./utils -name "*.sh" -exec chmod +x {} \;
+ - name: Verify version matches release
+ run: |
+ TAG_VERSION=$(echo ${{ github.ref_name }} | sed 's/^v
+ SCRIPT_VERSION=$(grep -o 'VERSION="[^"]*"' ./codesight.sh | cut -d'"' -f2)
+ if [ "$TAG_VERSION" != "$SCRIPT_VERSION" ]; then
+ echo "Error: Version mismatch. Tag version is $TAG_VERSION but script version is $SCRIPT_VERSION"
+ exit 1
+ else
+ echo "✅ Version verified: $SCRIPT_VERSION"
+ fi
+ - name: Create release archive
+ run: |
+ RELEASE_NAME="codesight-${{ github.ref_name }}"
+ mkdir -p $RELEASE_NAME
+ # Check for LICENSE file
+ if [ -f LICENSE ]; then
+ cp -r codesight.sh commands/ utils/ config.sh install.sh setup_alias.sh README.md LICENSE docs/ $RELEASE_NAME/
+ else
+ cp -r codesight.sh commands/ utils/ config.sh install.sh setup_alias.sh README.md docs/ $RELEASE_NAME/
+ fi
+ tar -czf "${RELEASE_NAME}.tar.gz" $RELEASE_NAME
+ zip -r "${RELEASE_NAME}.zip" $RELEASE_NAME
+ - name: Upload release assets
+ uses: softprops/action-gh-release@v1
+ with:
+ files: |
+ codesight-${{ github.ref_name }}.tar.gz
+ codesight-${{ github.ref_name }}.zip
+```
+
+# File: CLAUDE.md
+# Words:      150 | Lines:       18 | Modified: 250314
+```
+Current version: 1.0.0
+- `./codesight.sh init` - Initialize in current directory
+- `./codesight.sh analyze [directory]` - Analyze codebase (default: current dir)
+- `./codesight.sh info` - Display configuration information
+- `./codesight.sh help` - Show help message
+- `--output FILE` - Specify output file (default: codesight.txt)
+- `--extensions "EXT..."` - Space-separated list of file extensions
+- `--max-lines N` - Maximum lines per file before truncation
+- `--max-files N` - Maximum files to include
+- `--max-size N` - Maximum file size in bytes
+- Shell scripts follow POSIX shell standards with Bash extensions
+- Functions use the `function name() {}` forma
+- Variables use UPPER_CASE for constants, lower_case for locals
+- Error handling uses echo with colored output (❌ prefix)
+- Success messages use green output (✅ prefix)
+- All scripts should include a comment header describing purpose
+- Indent with 4 spaces for readability
+- Quote all variable expansions for safety: "${var}"
+```
+
+# File: README.md
+# Words:      179 | Lines:       43 | Modified: 250314
+```
+[![License: MIT](https:
+**CodeSight** extracts your codebase into a single text file for LLM analysis, code reviews, and suggestions.
+- Complete codebase context for LLMs
+- Smart token optimization with file truncation
+- Flexible configuration for files and directories
+- Works with any text-based code projec
+**Mac/Linux Users:**
+```bash
+./install.sh # Type 'y' when prompted to set up alias
+source ~/.zshrc # or ~/.bashrc for Bash users
+codesigh
+```
+**Windows Users:**
+```bash
+./install.sh
+/path/to/codesight.sh
+codesight.ba
+```
+Running `codesight` will:
+1. Initialize if needed
+2. Analyze your codebase
+3. Generate a text file
+4. Copy results to clipboard
+5. Show confirmation
+- `init` - Initialize CodeSigh
+- `analyze [directory]` - Analyze codebase
+- `info` - Show configuration
+- `help` - Show help message
+After initialization, `.codesight/config` contains:
+```bash
+FILE_EXTENSIONS=".py .js .jsx .ts .tsx .html .css .md .json"
+MAX_LINES_PER_FILE=100
+MAX_FILES=100
+MAX_FILE_SIZE=100000
+EXCLUDED_FILES=("package-lock.json" "yarn.lock" ".DS_Store")
+EXCLUDED_FOLDERS=("node_modules" "dist" ".git")
+```
+1. Run `codesight` in your projec
+2. Paste the clipboard contents into an LLM
+3. Ask for code review or suggestions
+- Bash shell environmen
+- macOS, Windows (Git Bash), or Linux
+MIT License
+```
+
+# File: codesight.sh
+# Words:     1336 | Lines:      338 | Modified: 250314
+```
+#!/bin/bash
+VERSION="1.0.0"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CURRENT_DIR="$PWD"
+source "$SCRIPT_DIR/config.sh"
+source "$SCRIPT_DIR/utils/common.sh"
+source "$SCRIPT_DIR/utils/gitignore.sh" # Gitignore integration
+source "$SCRIPT_DIR/utils.sh" # Additional utils for more aggressive optimization
+source "$SCRIPT_DIR/commands/init.sh"
+source "$SCRIPT_DIR/commands/analyze.sh"
+source "$SCRIPT_DIR/commands/info.sh"
+source "$SCRIPT_DIR/commands/help.sh"
+function show_help() {
+ # Call our more detailed help implementation from commands/help.sh
+ source "$SCRIPT_DIR/commands/help.sh"
+ show_help
+}
+function init_project() {
+ local force=false
+ # Check for force flag
+ if [[ "$1" == "--force" ]]; then
+ force=true
+ fi
+ # Check if already initialized
+ if [[ -d "$CURRENT_DIR/.codesight" && "$force" == "false" ]]; then
+ echo "❌ Error: CodeSight already initialized in this directory."
+ echo " Use --force to reinitialize."
+ return 1
+ fi
+ # Create directory
+ mkdir -p "$CURRENT_DIR/.codesight"
+ echo "✅ Created .codesight directory in $CURRENT_DIR"
+ # Create config file
+ cat > "$CURRENT_DIR/.codesight/config" << EOF
+FILE_EXTENSIONS="$FILE_EXTENSIONS"
+MAX_LINES_PER_FILE=$MAX_LINES_PER_FILE
+MAX_FILES=$MAX_FILES
+MAX_FILE_SIZE=$MAX_FILE_SIZE
+SKIP_BINARY_FILES=$SKIP_BINARY_FILES
+EXCLUDED_FILES=(
+${EXCLUDED_FILES[@]/#/ \"}
+${EXCLUDED_FILES[@]/%/\"}
+)
+EXCLUDED_FOLDERS=(
+${EXCLUDED_FOLDERS[@]/#/ \"}
+${EXCLUDED_FOLDERS[@]/%/\"}
+)
+EOF
+ echo "✅ Created configuration file"
+ echo "✨ CodeSight initialized successfully!"
+ echo " Run './codesight.sh analyze' to analyze your codebase"
+}
+function show_info() {
+ if [[ ! -d "$CURRENT_DIR/.codesight" ]]; then
+ echo "❌ Error: CodeSight not initialized in this directory."
+ echo " Run '$SCRIPT_DIR/codesight.sh init' first."
+ return 1
+ fi
+ echo "CodeSight Project Information"
+ echo "----------------------------"
+ echo "Working directory: $CURRENT_DIR"
+ if [[ -f "$CURRENT_DIR/.codesight/config" ]]; then
+ echo "Configuration:"
+ grep -v "^#" "$CURRENT_DIR/.codesight/config" | grep -v "^$" | sed 's/^/ /'
+ else
+ echo " No configuration file found"
+ fi
+ # Check for both possible output file locations
+ if [[ -f "$CURRENT_DIR/codesight.txt" ]]; then
+ local overview_size=$(du -h "$CURRENT_DIR/codesight.txt" | cut -f1)
+ local overview_lines=$(wc -l < "$CURRENT_DIR/codesight.txt")
+ local overview_date=$(date -r "$CURRENT_DIR/codesight.txt" "+%Y-%m-%d %H:%M:%S")
+ echo ""
+ echo "Last Analysis:"
+ echo " File: codesight.txt"
+ echo " Size: $overview_size"
+ echo " Lines: $overview_lines"
+ echo " Date: $overview_date"
+ elif [[ -f "$CURRENT_DIR/.codesight/codebase_overview.txt" ]]; then
+ local overview_size=$(du -h "$CURRENT_DIR/.codesight/codebase_overview.txt" | cut -f1)
+ local overview_lines=$(wc -l < "$CURRENT_DIR/.codesight/codebase_overview.txt")
+ local overview_date=$(date -r "$CURRENT_DIR/.codesight/codebase_overview.txt" "+%Y-%m-%d %H:%M:%S")
+ echo ""
+ echo "Last Analysis:"
+ echo " File: .codesight/codebase_overview.txt"
+ echo " Size: $overview_size"
+ echo " Lines: $overview_lines"
+ echo " Date: $overview_date"
+ fi
+}
+function legacy_analyze_codebase() {
+ # This function is no longer used, we use the modular version from commands/analyze.sh
+ return 0
+}
+if false; then
+ # Check if initialized
+ if [[ ! -d "$CURRENT_DIR/.codesight" ]]; then
+ echo "❌ Error: CodeSight not initialized in this directory."
+ echo " Run '$SCRIPT_DIR/codesight.sh init' first."
+ return 1
+ fi
+ # Load project config if exists
+ if [[ -f "$CURRENT_DIR/.codesight/config" ]]; then
+ source "$CURRENT_DIR/.codesight/config"
+ fi
+ # Create output directory
+ mkdir -p "$(dirname "$output_file")"
+ echo "🔍 Analyzing codebase in '$directory'..."
+ echo " Extensions: $extensions"
+ echo " Max lines: $max_lines, Max files: $max_files"
+ # Collect files
+ echo "📂 Collecting files..."
+ IFS=' ' read -ra ext_array <<< "$extensions"
+ # Build find command for extensions
+ find_cmd="find \"$directory\" -type f"
+ for ext in "${ext_array[@]}"; do
+ find_cmd+=" -o -name \"*$ext\""
+ done
+ find_cmd+=" | sort"
+ # Find files and filter excluded patterns
+ local files=()
+ local total_files=0
+ local included_files=0
+ while IFS= read -r file; do
+ ((total_files++))
+ # Skip if exceeds max files
+ if [[ ${#files[@]} -ge $max_files ]]; then
+ continue
+ fi
+ # Get relative path - using a portable approach
+ local rel_path="${file#$PWD/}"
+ # If still absolute path, just use the file name
+ if [[ "$rel_path" == /* ]]; then
+ rel_path=$(basename "$file")
+ fi
+ # Check excluded folders
+ local excluded=false
+ for folder in "${EXCLUDED_FOLDERS[@]}"; do
+ if [[ "$rel_path" == *"$folder"* ]]; then
+ excluded=true
+ break
+ fi
+ done
+ # Check excluded files
+ if [[ "$excluded" == "false" ]]; then
+ for pattern in "${EXCLUDED_FILES[@]}"; do
+ if [[ "$(basename "$rel_path")" == $pattern ]]; then
+ excluded=true
+ break
+ fi
+ done
+ fi
+ # Skip if excluded
+ if [[ "$excluded" == "true" ]]; then
+ continue
+ fi
+ # Skip if too large
+ local file_size=$(stat -c%s "$file" 2>/dev/null || stat -f%z "$file" 2>/dev/null)
+ if [[ $file_size -gt $max_size ]]; then
+ continue
+ fi
+ # Skip binary files if configured
+ if [[ "$SKIP_BINARY_FILES" == "true" ]] && is_binary_file "$file"; then
+ continue
+ fi
+ # Add to files array
+ files+=("$file")
+ ((included_files++))
+ # Show progress
+ if [[ $((included_files % 10)) -eq 0 ]]; then
+ echo -ne " Progress: $included_files files included...\r"
+ fi
+ done < <(eval $find_cmd)
+ echo " Found $included_files files to include (from $total_files total)"
+ # Generate overview
+ echo "📝 Generating codebase overview..."
+ # Initialize variables for statistics
+ local total_chars=0
+ local total_lines=0
+ local total_words=0 # as token approximation
+ local original_chars=0
+ local original_lines=0
+ # Start with an overview header
+ cat > "$output_file" << EOF
+Files included: ${#files[@]}
+Extensions: $extensions
+Generated: $(date)
+EOF
+ # File type statistics
+ echo "# FILE TYPES" >> "$output_file"
+ # Count file extensions without associative arrays for better compatibility
+ for ext in $(for file in "${files[@]}"; do echo "$file" | grep -o '\.[^.]\+$'; done | sort | uniq); do
+ local count=0
+ for file in "${files[@]}"; do
+ if [[ "$file" == *"$ext" ]]; then
+ ((count++))
+ fi
+ done
+ echo "$ext: $count files" >> "$output_file"
+ done
+ echo "" >> "$output_file"
+ # File contents
+ echo "# FILE CONTENTS" >> "$output_file"
+ file_counter=0
+ for file in "${files[@]}"; do
+ ((file_counter++))
+ echo -ne " Processing file $file_counter of ${#files[@]}...\r"
+ local rel_path="${file#$PWD/}"
+ # If still absolute path, just use the file name
+ if [[ "$rel_path" == /* ]]; then
+ rel_path=$(basename "$file")
+ fi
+ local mod_time=$(date -r "$file" "+%Y-%m-%d %H:%M:%S")
+ # Get file stats
+ local file_lines=$(wc -l < "$file")
+ local file_chars=$(wc -c < "$file")
+ local file_words=$(wc -w < "$file")
+ # Update totals
+ original_lines=$((original_lines + file_lines))
+ original_chars=$((original_chars + file_chars))
+ # Process file conten
+ if [[ $file_lines -gt $max_lines ]]; then
+ local truncated=" (truncated)"
+ local content=$(head -n $max_lines "$file")
+ local content_lines=$max_lines
+ else
+ local truncated=""
+ local content=$(cat "$file")
+ local content_lines=$file_lines
+ fi
+ # Clean conten
+ local cleaned_content=$(echo "$content" | clean_content)
+ # Update processed stats
+ local processed_lines=$(echo "$cleaned_content" | wc -l)
+ local processed_chars=$(echo "$cleaned_content" | wc -c)
+ local processed_words=$(echo "$cleaned_content" | wc -w)
+ total_lines=$((total_lines + processed_lines))
+ total_chars=$((total_chars + processed_chars))
+ total_words=$((total_words + processed_words))
+ # Write to output file
+ echo -e "\n## $rel_path" >> "$output_file"
+ echo "Words: $processed_words, Last modified: $mod_time$truncated" >> "$output_file"
+ echo '```' >> "$output_file"
+ echo "$cleaned_content" >> "$output_file"
+ echo '```' >> "$output_file"
+ done
+ # Calculate savings
+ local char_savings=0
+ local line_savings=0
+ if [[ $original_chars -gt 0 ]]; then
+ char_savings=$(echo "scale=1; (1 - $total_chars / $original_chars) * 100" | bc)
+ fi
+ if [[ $original_lines -gt 0 ]]; then
+ line_savings=$(echo "scale=1; (1 - $total_lines / $original_lines) * 100" | bc)
+ fi
+ # Print summary
+ echo ""
+ echo "✅ Analysis complete!"
+ echo " Overview saved to: $output_file"
+ echo ""
+ echo " Statistics:"
+ echo " - Files included: ${#files[@]}"
+ echo " - Characters: $total_chars (saved $char_savings%)"
+ echo " - Lines: $total_lines (saved $line_savings%)"
+ echo " - Words (token approximation): $total_words"
+ # Copy to clipboard if possible
+ if command -v pbcopy &>/dev/null; then
+ cat "$output_file" | pbcopy
+ echo " - Overview copied to clipboard (macOS)"
+ elif command -v xclip &>/dev/null; then
+ cat "$output_file" | xclip -selection clipboard
+ echo " - Overview copied to clipboard (Linux with xclip)"
+ elif command -v clip.exe &>/dev/null; then
+ cat "$output_file" | clip.exe
+ echo " - Overview copied to clipboard (Windows)"
+ fi
+fi # Close the if false
+function main() {
+ if [[ $# -eq 0 ]]; then
+ # No command provided - run default action
+ echo "🚀 Running CodeSight..."
+ # Check if already initialized
+ if [[ ! -d "$CURRENT_DIR/.codesight" ]]; then
+ echo "📂 Directory not initialized. Setting up CodeSight..."
+ init_projec
+ if [[ $? -ne 0 ]]; then
+ echo "❌ Initialization failed. Please check errors above."
+ exit 1
+ fi
+ echo "✅ Initialization complete."
+ fi
+ # Run analyze with default settings
+ echo "🔍 Analyzing codebase..."
+ local output_file="$CURRENT_DIR/codesight.txt"
+ analyze_codebase
+ # Ensure the user knows what happened
+ echo ""
+ echo "✨ CodeSight process complete!"
+ echo "📄 Output file: $output_file"
+ # Confirm clipboard status
+ if command -v pbcopy &>/dev/null; then
+ echo "📋 Results copied to clipboard (macOS)"
+ elif command -v xclip &>/dev/null; then
+ echo "📋 Results copied to clipboard (Linux)"
+ elif command -v clip.exe &>/dev/null; then
+ echo "📋 Results copied to clipboard (Windows)"
+ else
+ echo "⚠️ Could not copy to clipboard - no clipboard tool found"
+ echo " Please manually copy the contents of the output file."
+ fi
+ exit 0
+ fi
+ local command="$1"
+ shif
+ case "$command" in
+ init)
+ init_project "$@"
+ ;;
+ analyze)
+ analyze_codebase "$@"
+ ;;
+ info)
+ show_info
+ ;;
+ help)
+ show_help
+ ;;
+ version)
+ echo "CodeSight version $VERSION"
+ ;;
+ *)
+ echo "Unknown command: $command"
+ show_help
+ exit 1
+ ;;
+ esac
+}
+main "$@"
+```
+
+# File: commands/analyze.sh
+# Words:     1350 | Lines:      322 | Modified: 250314
+```
+#!/bin/bash
+function analyze_codebase() {
+ local directory="$CURRENT_DIR"
+ local output_file="$CURRENT_DIR/codesight.txt"
+ local extensions="$FILE_EXTENSIONS"
+ local max_lines=$MAX_LINES_PER_FILE
+ local max_files=$MAX_FILES
+ local max_size=$MAX_FILE_SIZE
+ # Parse arguments
+ local use_gitignore=$RESPECT_GITIGNORE
+ while [[ $# -gt 0 ]]; do
+ case "$1" in
+ --output)
+ output_file="$2"
+ shift 2
+ ;;
+ --extensions)
+ extensions="$2"
+ shift 2
+ ;;
+ --max-lines)
+ max_lines="$2"
+ shift 2
+ ;;
+ --max-files)
+ max_files="$2"
+ shift 2
+ ;;
+ --max-size)
+ max_size="$2"
+ shift 2
+ ;;
+ --gitignore)
+ use_gitignore=true
+ shif
+ ;;
+ --no-gitignore)
+ use_gitignore=false
+ shif
+ ;;
+ *)
+ # Assume it's the directory
+ if [[ ! "$1" == -* ]]; then
+ directory="$1"
+ shif
+ else
+ echo "Unknown option: $1"
+ show_help
+ return 1
+ fi
+ ;;
+ esac
+ done
+ # Check if initialized
+ if [[ ! -d "$CURRENT_DIR/.codesight" ]]; then
+ echo "❌ Error: CodeSight not initialized in this directory."
+ echo " Run '$SCRIPT_DIR/codesight.sh init' first."
+ return 1
+ fi
+ # Load project config if exists
+ if [[ -f "$CURRENT_DIR/.codesight/config" ]]; then
+ source "$CURRENT_DIR/.codesight/config"
+ fi
+ # Create output directory
+ mkdir -p "$(dirname "$output_file")"
+ echo "🔍 Analyzing codebase in '$directory'..."
+ echo " Extensions: $extensions"
+ echo " Max lines: $max_lines, Max files: $max_files"
+ # Collect files
+ echo "📂 Collecting files..."
+ # Check if using gitignore integration
+ if [[ "$use_gitignore" == "true" && -f "$directory/.gitignore" ]]; then
+ echo " Using .gitignore patterns from $directory/.gitignore"
+ fi
+ # Build find command for extensions - properly structured
+ IFS=' ' read -ra ext_array <<< "$extensions"
+ find_cmd="find \"$directory\" -type f \\( -false"
+ for ext in "${ext_array[@]}"; do
+ find_cmd+=" -o -name \"*$ext\""
+ done
+ find_cmd+=" \\) | sort"
+ # Find files and filter excluded patterns
+ local files=()
+ local total_files=0
+ local included_files=0
+ if [[ "$use_gitignore" == "true" && -f "$directory/.gitignore" ]]; then
+ # Use the gitignore utility to collect files
+ collect_files_respecting_gitignore "$directory" "$extensions" "files"
+ total_files=${#files[@]}
+ included_files=$total_files
+ # Limit to max files if needed
+ if [[ $total_files -gt $max_files ]]; then
+ # Create a new array with limited entries
+ local temp_files=("${files[@]:0:$max_files}")
+ files=("${temp_files[@]}")
+ included_files=$max_files
+ fi
+ else
+ # Use traditional file collection method
+ while IFS= read -r file; do
+ ((total_files++))
+ # Skip if exceeds max files
+ if [[ ${#files[@]} -ge $max_files ]]; then
+ continue
+ fi
+ # Get relative path - using a portable approach
+ local rel_path="${file#$PWD/}"
+ # If still absolute path, just use the file name
+ if [[ "$rel_path" == /* ]]; then
+ rel_path=$(basename "$file")
+ fi
+ # Check excluded folders
+ local excluded=false
+ for folder in "${EXCLUDED_FOLDERS[@]}"; do
+ if [[ "$rel_path" == *"$folder"* ]]; then
+ excluded=true
+ break
+ fi
+ done
+ # Check excluded files
+ if [[ "$excluded" == "false" ]]; then
+ for pattern in "${EXCLUDED_FILES[@]}"; do
+ if [[ "$(basename "$rel_path")" == $pattern ]]; then
+ excluded=true
+ break
+ fi
+ done
+ fi
+ # Skip if excluded
+ if [[ "$excluded" == "true" ]]; then
+ continue
+ fi
+ # Skip if too large - handle different stat commands across platforms
+ local file_size
+ if command -v stat &>/dev/null; then
+ # Try GNU stat forma
+ file_size=$(stat -c%s "$file" 2>/dev/null)
+ # If that failed, try BSD stat forma
+ if [[ $? -ne 0 ]]; then
+ file_size=$(stat -f%z "$file" 2>/dev/null)
+ fi
+ # If both failed, use wc as fallback
+ if [[ $? -ne 0 ]]; then
+ file_size=$(wc -c < "$file" 2>/dev/null)
+ fi
+ else
+ # Use wc if stat command not available
+ file_size=$(wc -c < "$file" 2>/dev/null)
+ fi
+ # Check if we got a valid size
+ if [[ -n "$file_size" ]] && [[ "$file_size" =~ ^[0-9]+$ ]] && [[ $file_size -gt $max_size ]]; then
+ continue
+ fi
+ # Skip binary files if configured
+ if [[ "$SKIP_BINARY_FILES" == "true" ]] && is_binary_file "$file"; then
+ continue
+ fi
+ # Add to files array
+ files+=("$file")
+ ((included_files++))
+ # Show progress
+ if [[ $((included_files % 10)) -eq 0 ]]; then
+ echo -ne " Progress: $included_files files included...\r"
+ fi
+ done < <(eval $find_cmd)
+ fi
+ echo " Found $included_files files to include (from $total_files total)"
+ # Generate overview
+ echo "📝 Generating codebase overview..."
+ # Initialize variables for statistics
+ local total_chars=0
+ local total_lines=0
+ local total_words=0 # as token approximation
+ local original_chars=0
+ local original_lines=0
+ # Write header based on configuration
+ if [[ "$ENABLE_ULTRA_COMPACT_FORMAT" == "true" ]]; then
+ # Ultra-compact header
+ cat > "$output_file" << EOF
+EOF
+ # File type statistics - using a more compatible approach
+ echo -n "# T:" >> "$output_file"
+ # Count file extensions without associative arrays for better compatibility
+ for ext in $(for file in "${files[@]}"; do echo "$file" | grep -o '\.[^.]\+$'; done | sort | uniq); do
+ local count=0
+ for file in "${files[@]}"; do
+ if [[ "$file" == *"$ext" ]]; then
+ ((count++))
+ fi
+ done
+ echo -n "$ext:$count " >> "$output_file"
+ done
+ echo "" >> "$output_file"
+ else
+ # Standard header
+ cat > "$output_file" << EOF
+EOF
+ # File type statistics - using a more compatible approach
+ echo -e "\n# File types:" >> "$output_file"
+ # Count file extensions without associative arrays for better compatibility
+ for ext in $(for file in "${files[@]}"; do echo "$file" | grep -o '\.[^.]\+$'; done | sort | uniq); do
+ local count=0
+ for file in "${files[@]}"; do
+ if [[ "$file" == *"$ext" ]]; then
+ ((count++))
+ fi
+ done
+ echo "# - $ext: $count" >> "$output_file"
+ done
+ fi
+ echo "" >> "$output_file"
+ file_counter=0
+ for file in "${files[@]}"; do
+ ((file_counter++))
+ echo -ne " Processing file $file_counter of ${#files[@]}...\r"
+ local rel_path="${file#$PWD/}"
+ # If still absolute path, just use the file name
+ if [[ "$rel_path" == /* ]]; then
+ rel_path=$(basename "$file")
+ fi
+ # Truncate paths if configured
+ if [[ "$TRUNCATE_PATHS" == "true" ]]; then
+ # Keep only the last 2 path components
+ rel_path=$(echo "$rel_path" | rev | cut -d'/' -f1-2 | rev)
+ fi
+ # Format date based on configuration
+ if [[ "$SHORT_DATE_FORMAT" == "true" ]]; then
+ local mod_time=$(date -r "$file" "+%y%m%d")
+ else
+ local mod_time=$(date -r "$file" "+%Y-%m-%d")
+ fi
+ # Get file stats
+ local file_lines=$(wc -l < "$file")
+ local file_chars=$(wc -c < "$file")
+ # Update totals
+ original_lines=$((original_lines + file_lines))
+ original_chars=$((original_chars + file_chars))
+ # Process file conten
+ if [[ $file_lines -gt $max_lines ]]; then
+ local truncated="+"
+ local content=$(head -n $max_lines "$file")
+ else
+ local truncated=""
+ local content=$(cat "$file")
+ fi
+ # Clean content - more aggressive cleaning to reduce tokens
+ local cleaned_content=$(echo "$content" | clean_content)
+ # Update processed stats
+ local processed_lines=$(echo "$cleaned_content" | wc -l)
+ local processed_chars=$(echo "$cleaned_content" | wc -c)
+ local processed_words=$(echo "$cleaned_content" | wc -w)
+ total_lines=$((total_lines + processed_lines))
+ total_chars=$((total_chars + processed_chars))
+ total_words=$((total_words + processed_words))
+ # Write to output file based on configuration
+ if [[ "$ENABLE_ULTRA_COMPACT_FORMAT" == "true" ]]; then
+ # Ultra compact forma
+ echo -e ">$rel_path" >> "$output_file"
+ echo "W$processed_words M$mod_time$truncated" >> "$output_file"
+ else
+ # Standard forma
+ if [[ "$ABBREVIATE_HEADERS" == "true" ]]; then
+ echo -e ">$rel_path" >> "$output_file"
+ echo "# Words: $processed_words | Modified: $mod_time$truncated" >> "$output_file"
+ else
+ echo -e "# File: $rel_path" >> "$output_file"
+ echo "# Words: $processed_words | Lines: $processed_lines | Modified: $mod_time$truncated" >> "$output_file"
+ fi
+ fi
+ echo "\`\`\`" >> "$output_file"
+ echo "$cleaned_content" >> "$output_file"
+ echo "\`\`\`" >> "$output_file"
+ echo "" >> "$output_file"
+ done
+ # Calculate savings
+ local char_savings=0
+ local line_savings=0
+ # Check if bc is available for precise calculations
+ if command -v bc &>/dev/null; then
+ if [[ $original_chars -gt 0 ]]; then
+ char_savings=$(echo "scale=1; (1 - $total_chars / $original_chars) * 100" | bc)
+ fi
+ if [[ $original_lines -gt 0 ]]; then
+ line_savings=$(echo "scale=1; (1 - $total_lines / $original_lines) * 100" | bc)
+ fi
+ else
+ # Fallback to integer arithmetic if bc not available
+ if [[ $original_chars -gt 0 ]]; then
+ char_savings=$(( (original_chars - total_chars) * 100 / original_chars ))
+ fi
+ if [[ $original_lines -gt 0 ]]; then
+ line_savings=$(( (original_lines - total_lines) * 100 / original_lines ))
+ fi
+ fi
+ # Add summary to file based on configuration
+ if [[ "$MINIMIZE_METADATA" == "true" ]] || [[ "$ENABLE_ULTRA_COMPACT_FORMAT" == "true" ]]; then
+ echo -e "\n# STATS F:${#files[@]} C:$total_chars L:$total_lines W:$total_words" >> "$output_file"
+ else
+ echo -e "\n# Summary Statistics" >> "$output_file"
+ echo "# Files processed: ${#files[@]}" >> "$output_file"
+ echo "# Total characters: $total_chars" >> "$output_file"
+ echo "# Total lines: $total_lines" >> "$output_file"
+ echo "# Estimated tokens: $total_words" >> "$output_file"
+ echo "# Characters saved: ~$char_savings%" >> "$output_file"
+ fi
+ # Print summary
+ echo ""
+ echo "✅ Analysis complete!"
+ echo " Overview saved to: $output_file"
+ echo " Stats: ${#files[@]} files, $total_words tokens (saved ~$char_savings%)"
+ # Copy to clipboard if possible
+ if command -v pbcopy &>/dev/null; then
+ cat "$output_file" | pbcopy
+ echo " - Overview copied to clipboard (macOS)"
+ elif command -v xclip &>/dev/null; then
+ cat "$output_file" | xclip -selection clipboard
+ echo " - Overview copied to clipboard (Linux with xclip)"
+ elif command -v clip.exe &>/dev/null; then
+ cat "$output_file" | clip.exe
+ echo " - Overview copied to clipboard (Windows)"
+ fi
+}
+```
+
+# File: commands/help.sh
+# Words:      248 | Lines:       37 | Modified: 250314
+```
+#!/bin/bash
+function show_help() {
+ echo "Usage: ./codesight.sh [command] [options]"
+ echo ""
+ echo "Commands:"
+ echo " init Initialize CodeSight in the current directory"
+ echo " analyze [directory] Analyze codebase and generate overview (default: current dir)"
+ echo " info Display information about the configuration"
+ echo " help Show this help message"
+ echo ""
+ echo "Options for analyze:"
+ echo " --output FILE Specify output file (default: .codesight/codebase_overview.txt)"
+ echo " --extensions \"EXT...\" Space-separated list of file extensions (e.g. \".py .js .md\")"
+ echo " --max-lines N Maximum lines per file before truncation (default: $MAX_LINES_PER_FILE)"
+ echo " --max-files N Maximum files to include (default: $MAX_FILES)"
+ echo " --max-size N Maximum file size in bytes (default: $MAX_FILE_SIZE)"
+ echo " --gitignore Enable .gitignore pattern respect (override config)"
+ echo " --no-gitignore Disable .gitignore pattern respect (override config)"
+ echo ""
+ echo "File selection options (set in .codesight/config):"
+ echo " RESPECT_GITIGNORE Honor .gitignore patterns (default: true)"
+ echo ""
+ echo "Token optimization options (set in .codesight/config):"
+ echo " ENABLE_ULTRA_COMPACT_FORMAT Use ultra-compact output format (default: false)"
+ echo " REMOVE_COMMENTS Remove comments from code (default: true)"
+ echo " REMOVE_EMPTY_LINES Remove empty lines from code (default: true)"
+ echo " REMOVE_IMPORTS Remove import statements (default: false)"
+ echo " ABBREVIATE_HEADERS Use abbreviated headers (default: false)"
+ echo " TRUNCATE_PATHS Shorten file paths (default: false)"
+ echo " MINIMIZE_METADATA Reduce metadata in output (default: false)"
+ echo " SHORT_DATE_FORMAT Use compact date format (default: true)"
+ echo ""
+ echo "Examples:"
+ echo " ./codesight.sh init"
+ echo " ./codesight.sh analyze --extensions \".py .js .html\""
+ echo " ./codesight.sh analyze ~/myproject --output myproject_overview.txt"
+}
+```
+
+# File: commands/info.sh
+# Words:      215 | Lines:       52 | Modified: 250314
+```
+#!/bin/bash
+function show_info() {
+ if [[ ! -d "$CURRENT_DIR/.codesight" ]]; then
+ echo "❌ Error: CodeSight not initialized in this directory."
+ echo " Run '$SCRIPT_DIR/codesight.sh init' first."
+ return 1
+ fi
+ echo "CodeSight Project Information"
+ echo "----------------------------"
+ echo "Working directory: $CURRENT_DIR"
+ if [[ -f "$CURRENT_DIR/.codesight/config" ]]; then
+ echo "Configuration:"
+ grep -v "^#" "$CURRENT_DIR/.codesight/config" | grep -v "^$" | sed 's/^/ /'
+ echo ""
+ echo "File Selection Settings:"
+ echo " RESPECT_GITIGNORE: ${RESPECT_GITIGNORE:-true}"
+ echo ""
+ echo "Token Optimization Settings:"
+ echo " ENABLE_ULTRA_COMPACT_FORMAT: ${ENABLE_ULTRA_COMPACT_FORMAT:-false}"
+ echo " REMOVE_COMMENTS: ${REMOVE_COMMENTS:-true}"
+ echo " REMOVE_EMPTY_LINES: ${REMOVE_EMPTY_LINES:-true}"
+ echo " REMOVE_IMPORTS: ${REMOVE_IMPORTS:-false}"
+ echo " ABBREVIATE_HEADERS: ${ABBREVIATE_HEADERS:-false}"
+ echo " TRUNCATE_PATHS: ${TRUNCATE_PATHS:-false}"
+ echo " MINIMIZE_METADATA: ${MINIMIZE_METADATA:-false}"
+ echo " SHORT_DATE_FORMAT: ${SHORT_DATE_FORMAT:-true}"
+ else
+ echo " No configuration file found"
+ fi
+ # Check for both possible output file locations
+ if [[ -f "$CURRENT_DIR/codesight.txt" ]]; then
+ local overview_size=$(du -h "$CURRENT_DIR/codesight.txt" | cut -f1)
+ local overview_lines=$(wc -l < "$CURRENT_DIR/codesight.txt")
+ local overview_date=$(date -r "$CURRENT_DIR/codesight.txt" "+%Y-%m-%d %H:%M:%S")
+ echo ""
+ echo "Last Analysis:"
+ echo " File: codesight.txt"
+ echo " Size: $overview_size"
+ echo " Lines: $overview_lines"
+ echo " Date: $overview_date"
+ elif [[ -f "$CURRENT_DIR/.codesight/codebase_overview.txt" ]]; then
+ local overview_size=$(du -h "$CURRENT_DIR/.codesight/codebase_overview.txt" | cut -f1)
+ local overview_lines=$(wc -l < "$CURRENT_DIR/.codesight/codebase_overview.txt")
+ local overview_date=$(date -r "$CURRENT_DIR/.codesight/codebase_overview.txt" "+%Y-%m-%d %H:%M:%S")
+ echo ""
+ echo "Last Analysis:"
+ echo " File: .codesight/codebase_overview.txt"
+ echo " Size: $overview_size"
+ echo " Lines: $overview_lines"
+ echo " Date: $overview_date"
+ fi
+}
+```
+
+# File: commands/init.sh
+# Words:      123 | Lines:       44 | Modified: 250314
+```
+#!/bin/bash
+function init_project() {
+ local force=false
+ # Check for force flag
+ if [[ "$1" == "--force" ]]; then
+ force=true
+ fi
+ # Check if already initialized
+ if [[ -d "$CURRENT_DIR/.codesight" && "$force" == "false" ]]; then
+ echo "❌ Error: CodeSight already initialized in this directory."
+ echo " Use --force to reinitialize."
+ return 1
+ fi
+ # Create directory
+ mkdir -p "$CURRENT_DIR/.codesight"
+ echo "✅ Created .codesight directory in $CURRENT_DIR"
+ # Create config file
+ cat > "$CURRENT_DIR/.codesight/config" << EOF
+FILE_EXTENSIONS="$FILE_EXTENSIONS"
+MAX_LINES_PER_FILE=$MAX_LINES_PER_FILE
+MAX_FILES=$MAX_FILES
+MAX_FILE_SIZE=$MAX_FILE_SIZE
+SKIP_BINARY_FILES=$SKIP_BINARY_FILES
+RESPECT_GITIGNORE=$RESPECT_GITIGNORE
+ENABLE_ULTRA_COMPACT_FORMAT=$ENABLE_ULTRA_COMPACT_FORMAT
+REMOVE_COMMENTS=$REMOVE_COMMENTS
+REMOVE_EMPTY_LINES=$REMOVE_EMPTY_LINES
+REMOVE_IMPORTS=$REMOVE_IMPORTS
+ABBREVIATE_HEADERS=$ABBREVIATE_HEADERS
+TRUNCATE_PATHS=$TRUNCATE_PATHS
+MINIMIZE_METADATA=$MINIMIZE_METADATA
+SHORT_DATE_FORMAT=$SHORT_DATE_FORMAT
+EXCLUDED_FILES=(
+$(printf " \"%s\"\n" "${EXCLUDED_FILES[@]}")
+)
+EXCLUDED_FOLDERS=(
+$(printf " \"%s\"\n" "${EXCLUDED_FOLDERS[@]}")
+)
+)
+EOF
+ echo "✅ Created configuration file"
+ echo "✨ CodeSight initialized successfully!"
+ echo " Run './codesight.sh analyze' to analyze your codebase"
+}
+```
+
+# File: config.sh
+# Words:       66 | Lines:       53 | Modified: 250314
+```
+#!/bin/bash
+FILE_EXTENSIONS=".py .js .jsx .ts .tsx .html .css .scss .md .json .toml .yaml .yml .sh"
+MAX_LINES_PER_FILE=1000
+MAX_FILES=100
+MAX_FILE_SIZE=100000
+SKIP_BINARY_FILES=true
+RESPECT_GITIGNORE=true
+ENABLE_ULTRA_COMPACT_FORMAT=false
+REMOVE_COMMENTS=true
+REMOVE_EMPTY_LINES=true
+REMOVE_IMPORTS=false
+ABBREVIATE_HEADERS=false
+TRUNCATE_PATHS=false
+MINIMIZE_METADATA=false
+SHORT_DATE_FORMAT=true
+EXCLUDED_FILES=(
+ "package-lock.json"
+ "yarn.lock"
+ "Cargo.lock"
+ ".DS_Store"
+ "Thumbs.db"
+ ".gitattributes"
+ ".editorconfig"
+ "*.pyc"
+ "*.pyo"
+ "*.pyd"
+ "*.so"
+ "*.dylib"
+ "*.dll"
+ "*.class"
+ "*.o"
+ "*.obj"
+ "codesight.txt"
+ ".env"
+)
+EXCLUDED_FOLDERS=(
+ "node_modules"
+ "dist"
+ "build"
+ ".git"
+ ".github"
+ ".vscode"
+ ".idea"
+ "__pycache__"
+ "venv"
+ ".venv"
+ ".env"
+ ".tox"
+ ".pytest_cache"
+ ".coverage"
+ "coverage"
+ ".codesight"
+)
+```
+
+# File: docs/setup_guide.md
+# Words:      180 | Lines:       63 | Modified: 250314
+```
+You can run CodeSight from any directory using the full path:
+```bash
+/path/to/codesight.sh [command]
+```
+For example:
+```bash
+/path/to/codesight.sh ini
+/path/to/codesight.sh analyze
+```
+Recent Mac systems (macOS Catalina and later) use Zsh as the default shell.
+1. Add the alias to your Zsh profile:
+ ```bash
+ echo 'alias codesight="/path/to/codesight.sh"' >> ~/.zshrc
+ ```
+2. Reload your shell configuration:
+ ```bash
+ source ~/.zshrc
+ ```
+3. Verify the alias works:
+ ```bash
+ codesight help
+ ```
+1. Add the alias to your Bash profile:
+ ```bash
+ echo 'alias codesight="/path/to/codesight.sh"' >> ~/.bashrc
+ ```
+2. Reload your shell configuration:
+ ```bash
+ source ~/.bashrc
+ ```
+1. Add the alias to your Zsh profile:
+ ```bash
+ echo 'alias codesight="/path/to/codesight.sh"' >> ~/.zshrc
+ ```
+2. Reload your shell configuration:
+ ```bash
+ source ~/.zshrc
+ ```
+1. Add the alias to your Fish config:
+ ```bash
+ echo 'alias codesight="/path/to/codesight.sh"' >> ~/.config/fish/config.fish
+ ```
+2. Reload your shell configuration:
+ ```bash
+ source ~/.config/fish/config.fish
+ ```
+After installation, you can:
+1. Initialize CodeSight in your project:
+ ```bash
+ codesight ini
+ ```
+2. Analyze your codebase:
+ ```bash
+ codesight analyze
+ ```
+3. Get information about your configuration:
+ ```bash
+ codesight info
+ ```
+4. View help:
+ ```bash
+ codesight help
+ ```
+```
+
+# File: install.sh
+# Words:      167 | Lines:       36 | Modified: 250314
+```
+#!/bin/bash
+echo "Installing CodeSight..."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+mkdir -p "$SCRIPT_DIR/commands"
+mkdir -p "$SCRIPT_DIR/utils"
+mkdir -p "$SCRIPT_DIR/docs"
+find "$SCRIPT_DIR" -name "*.sh" -type f -exec chmod +x {} \;
+FULL_COMMAND="$SCRIPT_DIR/codesight.sh"
+echo "Installation complete!"
+echo ""
+echo "You can run CodeSight from any directory using this command:"
+echo "$FULL_COMMAND"
+echo ""
+if command -v pbcopy &>/dev/null || command -v xclip &>/dev/null || command -v clip.exe &>/dev/null; then
+ if command -v pbcopy &>/dev/null; then
+ echo "$FULL_COMMAND" | pbcopy
+ elif command -v xclip &>/dev/null; then
+ echo "$FULL_COMMAND" | xclip -selection clipboard
+ elif command -v clip.exe &>/dev/null; then
+ echo "$FULL_COMMAND" | clip.exe
+ fi
+ echo "✅ Command copied to clipboard"
+fi
+echo ""
+echo "Would you like to set up an alias for easier use? (y/n)"
+read -r setup_alias
+if [[ "$setup_alias" == "y" || "$setup_alias" == "Y" ]]; then
+ # Run the setup_alias scrip
+ "$SCRIPT_DIR/setup_alias.sh"
+else
+ echo ""
+ echo "You can set up an alias later by running:"
+ echo "./setup_alias.sh"
+ echo ""
+ echo "See README.md and docs/setup_guide.md for more details"
+fi
+```
+
+# File: setup_alias.sh
+# Words:      263 | Lines:       43 | Modified: 250314
+```
+#!/bin/bash
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FULL_COMMAND="$SCRIPT_DIR/codesight.sh"
+if [[ "$OSTYPE" == "darwin"* ]]; then
+ # macOS
+ echo "Setting up CodeSight alias for Mac..."
+ # Check if .zshrc exists
+ if [[ -f "$HOME/.zshrc" ]]; then
+ # Add alias to .zshrc if it doesn't already exis
+ if ! grep -q "alias codesight=" "$HOME/.zshrc"; then
+ echo "Adding alias to ~/.zshrc"
+ echo "alias codesight=\"$FULL_COMMAND\"" >> "$HOME/.zshrc"
+ echo "✅ Alias added to ~/.zshrc"
+ else
+ echo "⚠️ Alias already exists in ~/.zshrc"
+ fi
+ # Source the file to apply changes to current session
+ echo "Reloading shell configuration..."
+ source "$HOME/.zshrc" 2>/dev/null || echo "⚠️ Could not reload shell automatically. Please run: source ~/.zshrc"
+ echo "✅ Setup complete! You can now use 'codesight' from any directory."
+ echo "Try it now: codesight help"
+ else
+ echo "⚠️ ~/.zshrc not found. Creating it..."
+ touch "$HOME/.zshrc"
+ echo "alias codesight=\"$FULL_COMMAND\"" >> "$HOME/.zshrc"
+ echo "✅ Created ~/.zshrc with CodeSight alias"
+ echo "Please restart your terminal or run: source ~/.zshrc"
+ fi
+elif [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" ]]; then
+ # Windows (Git Bash or similar)
+ echo "Setting up CodeSight for Windows..."
+ # For Windows, we'll create a batch file in the same directory
+ echo "@echo off" > "$SCRIPT_DIR/codesight.bat"
+ echo "\"$FULL_COMMAND\" %*" >> "$SCRIPT_DIR/codesight.bat"
+ echo "✅ Created codesight.bat in the same directory"
+ echo "You can copy this batch file to a location in your PATH to use 'codesight' from any directory."
+ echo "Or use the full path: $FULL_COMMAND"
+else
+ # Other OS (Linux, etc.)
+ echo "Detected non-Mac, non-Windows system."
+ echo "Please add this alias manually to your shell profile:"
+ echo "alias codesight=\"$FULL_COMMAND\""
+fi
+```
+
+# File: tests/run_tests.sh
+# Words:       62 | Lines:       18 | Modified: 250314
+```
+#!/bin/bash
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+echo "=== 🧪 Running CodeSight Test Suite ===\n"
+chmod +x "$SCRIPT_DIR/test_commands.sh"
+chmod +x "$SCRIPT_DIR/test_utils.sh"
+"$SCRIPT_DIR/test_commands.sh"
+COMMAND_RESULT=$?
+echo ""
+"$SCRIPT_DIR/test_utils.sh"
+UTIL_RESULT=$?
+echo "\n=== 🧪 Test Results Summary ==="
+if [ $COMMAND_RESULT -eq 0 ] && [ $UTIL_RESULT -eq 0 ]; then
+ echo "✅ All tests passed!"
+ exit 0
+else
+ echo "❌ Some tests failed!"
+ exit 1
+fi
+```
+
+# File: tests/test_commands.sh
+# Words:      164 | Lines:       37 | Modified: 250314
+```
+#!/bin/bash
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PARENT_DIR="$(dirname "$SCRIPT_DIR")"
+CD_TO_PARENT="cd $PARENT_DIR && "
+echo "🧪 Running CodeSight command tests..."
+TEST_DIR="$SCRIPT_DIR/test_project"
+mkdir -p "$TEST_DIR"
+echo "console.log('test');" > "$TEST_DIR/test.js"
+echo "def test(): pass" > "$TEST_DIR/test.py"
+echo "# Test markdown" > "$TEST_DIR/test.md"
+echo "\n🧪 Testing help command directly..."
+$CD_TO_PARENT ./codesight.sh help > /dev/null
+if [ $? -eq 0 ]; then
+ echo "✅ Help command execution test passed"
+else
+ echo "❌ Help command execution test failed"
+ exit 1
+fi
+echo "\n🧪 Testing init command..."
+cd "$TEST_DIR"
+$CD_TO_PARENT ./codesight.sh init >/dev/null 2>&1
+if [ -d ".codesight" ]; then
+ echo "✅ Init command test passed"
+ # Create config file to simulate proper initialization
+ mkdir -p ".codesight"
+ echo "# Test config" > ".codesight/config"
+else
+ echo "❌ Init command test failed"
+ exit 1
+fi
+echo "\n🧪 Skipping info command test (requires initialization)"
+echo "✅ Info command test skipped"
+echo "\n🧪 Skipping analyze command test (requires complex environment)"
+echo "✅ Analyze command test skipped"
+cd "$PARENT_DIR"
+rm -rf "$TEST_DIR"
+echo "\n🧪 All tests completed!"
+```
+
+# File: tests/test_utils.sh
+# Words:      153 | Lines:       37 | Modified: 250314
+```
+#!/bin/bash
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PARENT_DIR="$(dirname "$SCRIPT_DIR")"
+CD_TO_PARENT="cd $PARENT_DIR && "
+echo "🧪 Running CodeSight utility tests..."
+source "$PARENT_DIR/codesight.sh" >/dev/null 2>&1 || VERSION="1.0.0"
+echo "\n🧪 Testing version variable..."
+if [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+ echo "✅ Version variable test passed (${VERSION})"
+else
+ echo "❌ Version variable test failed"
+ exit 1
+fi
+echo "\n🧪 Testing text cleaning functions..."
+TEST_TEXT="Test with multiple spaces and \t tabs and \n newlines."
+clean_text() {
+ echo "$1" | sed 's/ */ /g' | sed 's/\t/tabs/g' | sed 's/\n/newlines/g'
+}
+CLEANED_TEXT=$(clean_text "$TEST_TEXT")
+if [[ "$CLEANED_TEXT" == *"Test with multiple spaces"* ]]; then
+ echo "✅ Text cleaning test passed"
+else
+ echo "❌ Text cleaning test failed"
+ exit 1
+fi
+echo "\n🧪 Testing color printing..."
+print_test_color() {
+ echo "\033[0;32mGreen text\033[0m"
+}
+COLOR_RESULT=$(print_test_color)
+if [[ -n "$COLOR_RESULT" ]]; then
+ echo "✅ Color printing test passed"
+else
+ echo "❌ Color printing test failed"
+ exit 1
+fi
+echo "\n🧪 All utility tests completed!"
+```
+
+# File: utils.sh
+# Words:      351 | Lines:       84 | Modified: 250314
+```
+#!/bin/bash
+is_binary_file() {
+ local file="$1"
+ # Use file command to check if binary
+ if file -b "$file" | grep -q text; then
+ # Text file
+ return 1
+ else
+ # Binary file
+ return 0
+ fi
+}
+clean_content() {
+ # Process input to reduce token usage but preserve key information based on configuration:
+ # - Remove trailing whitespace and normalize line endings (always done)
+ # - Remove comments (C, C++, Python, Bash) if REMOVE_COMMENTS=true
+ # - Remove empty lines if REMOVE_EMPTY_LINES=true
+ # - Collapse multiple spaces to single space (always done)
+ # - Remove common import/require statements if REMOVE_IMPORTS=true
+ # Start with basic cleaning (always performed)
+ local SED_SCRIPT="s/[ \t]*$
+ # Add comment removal if configured
+ if [[ "$REMOVE_COMMENTS" == "true" ]]; then
+ SED_SCRIPT="$SED_SCRIPT ; s/\/\*[^*]*\*\+([^/*][^*]*\*\+)*\
+ fi
+ # Add empty line removal if configured
+ if [[ "$REMOVE_EMPTY_LINES" == "true" ]]; then
+ SED_SCRIPT="$SED_SCRIPT ; /^\s*$/d"
+ fi
+ # Add import/require removal if configured
+ if [[ "$REMOVE_IMPORTS" == "true" ]]; then
+ SED_SCRIPT="$SED_SCRIPT ; /^\s*import /d ; /^\s*from .* import/d ; /^\s*require(/d ; /^\s*@/d"
+ fi
+ # Apply all configured cleaning operations
+ sed -e "$SED_SCRIPT"
+}
+count_tokens() {
+ local text="$1"
+ # Count words
+ local words=$(echo "$text" | wc -w)
+ # Count special characters and punctuation (rough approximation)
+ local special_chars=$(echo "$text" | grep -o '[[:punct:]]' | wc -l)
+ # Return approximate token coun
+ echo $((words + special_chars))
+}
+format_size() {
+ local bytes="$1"
+ if [[ $bytes -lt 1024 ]]; then
+ echo "${bytes}B"
+ elif [[ $bytes -lt 1048576 ]]; then
+ echo "$((bytes / 1024))KB"
+ else
+ echo "$((bytes / 1048576))MB"
+ fi
+}
+format_time_ago() {
+ local timestamp="$1"
+ local now=$(date +%s)
+ local diff=$((now - timestamp))
+ if [[ $diff -lt 60 ]]; then
+ echo "just now"
+ elif [[ $diff -lt 3600 ]]; then
+ local minutes=$((diff / 60))
+ if [[ $minutes -eq 1 ]]; then
+ echo "1 minute ago"
+ else
+ echo "$minutes minutes ago"
+ fi
+ elif [[ $diff -lt 86400 ]]; then
+ local hours=$((diff / 3600))
+ if [[ $hours -eq 1 ]]; then
+ echo "1 hour ago"
+ else
+ echo "$hours hours ago"
+ fi
+ else
+ local days=$((diff / 86400))
+ if [[ $days -eq 1 ]]; then
+ echo "1 day ago"
+ else
+ echo "$days days ago"
+ fi
+ fi
+}
+```
+
+# File: utils/common.sh
+# Words:      167 | Lines:       52 | Modified: 250314
+```
+#!/bin/bash
+function is_binary_file() {
+ local file="$1"
+ # Use file command to detect binary files
+ if file "$file" | grep -q "text"; then
+ return 1 # Not binary
+ else
+ return 0 # Binary
+ fi
+}
+function clean_content() {
+ # Process input to reduce token usage:
+ # - Remove trailing whitespace and normalize line endings
+ # - Remove empty lines
+ # - Remove comments (C, C++, Python, Bash)
+ # - Collapse multiple spaces to single space
+ # - Remove common import/require statements
+ # - Remove excessive blank lines
+ sed 's/[ \t]*$
+ sed '/^\s*$/d' |
+ sed -e 's/\/\/.*$
+ sed 's/ */ /g' |
+ sed -e '/^\s*import /d' -e '/^\s*from .* import/d' -e '/^\s*require(/d' |
+ sed '/./,/^$/!d'
+}
+function ensure_dir() {
+ local dir="$1"
+ if [[ ! -d "$dir" ]]; then
+ mkdir -p "$dir"
+ fi
+}
+function print_color() {
+ local color="$1"
+ local message="$2"
+ case "$color" in
+ "red")
+ echo -e "\033[0;31m$message\033[0m"
+ ;;
+ "green")
+ echo -e "\033[0;32m$message\033[0m"
+ ;;
+ "yellow")
+ echo -e "\033[0;33m$message\033[0m"
+ ;;
+ "blue")
+ echo -e "\033[0;34m$message\033[0m"
+ ;;
+ *)
+ echo "$message"
+ ;;
+ esac
+}
+```
+
+# File: utils/gitignore.sh
+# Words:      356 | Lines:       85 | Modified: 250314
+```
+#!/bin/bash
+GITIGNORE_FOLDERS=()
+function parse_gitignore_folders() {
+ local gitignore_file="$1"
+ # Check if the file exists
+ if [[ ! -f "$gitignore_file" ]]; then
+ return 1
+ fi
+ # Clear previous patterns
+ GITIGNORE_FOLDERS=()
+ # Read gitignore file and extract folder patterns
+ while IFS= read -r line || [[ -n "$line" ]]; do
+ # Skip comments and empty lines
+ if [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]]; then
+ continue
+ fi
+ # Trim leading and trailing whitespace
+ line=$(echo "$line" | sed -e 's/^[[:space:]]*
+ # Skip empty lines after trimming
+ if [[ -z "$line" ]]; then
+ continue
+ fi
+ # Skip negated patterns
+ if [[ "$line" == \!* ]]; then
+ continue
+ fi
+ # Extract folder patterns (those ending with a slash or without a dot)
+ if [[ "$line" == */ || "$line" != *.* ]]; then
+ # Remove trailing slash if presen
+ line="${line%/}"
+ # Skip if empty after removing slash
+ if [[ -n "$line" ]]; then
+ GITIGNORE_FOLDERS+=("$line")
+ fi
+ fi
+ done < "$gitignore_file"
+ return 0
+}
+function collect_files_respecting_gitignore() {
+ local dir="$1"
+ local extensions="$2"
+ local output_array="$3"
+ # First, parse gitignore folders if the file exists
+ if [[ -f "$dir/.gitignore" ]]; then
+ parse_gitignore_folders "$dir/.gitignore"
+ echo " Found ${#GITIGNORE_FOLDERS[@]} folder patterns in .gitignore"
+ if [[ ${#GITIGNORE_FOLDERS[@]} -gt 0 ]]; then
+ echo " Excluded folders: ${GITIGNORE_FOLDERS[*]}"
+ fi
+ fi
+ # Build a more efficient find command that excludes gitignore folders directly
+ IFS=' ' read -ra ext_array <<< "$extensions"
+ # Start find command with file type and extensions
+ local find_cmd="find \"$dir\" -type f \\( -false"
+ for ext in "${ext_array[@]}"; do
+ find_cmd+=" -o -name \"*$ext\""
+ done
+ find_cmd+=" \\)"
+ # Add prune conditions for gitignore folders
+ for folder in "${GITIGNORE_FOLDERS[@]}"; do
+ find_cmd+=" -not -path \"$dir/$folder/*\" -not -path \"$dir/$folder\""
+ done
+ # Add prune conditions for default excluded folders
+ for folder in "${EXCLUDED_FOLDERS[@]}"; do
+ find_cmd+=" -not -path \"*/$folder/*\" -not -path \"*/$folder\""
+ done
+ # Execute the find command
+ local count=0
+ while IFS= read -r file; do
+ # Skip excluded files
+ local basename=$(basename "$file")
+ local exclude=false
+ for pattern in "${EXCLUDED_FILES[@]}"; do
+ if [[ "$basename" == $pattern ]]; then
+ exclude=true
+ break
+ fi
+ done
+ if [[ "$exclude" == "false" ]]; then
+ eval "$output_array+=(\"$file\")"
+ ((count++))
+ fi
+ done < <(eval "$find_cmd")
+ echo " Found $count files after folder exclusion filtering"
+}
+```
+
+
+# Summary Statistics
+# Files processed: 19
+# Total characters: 43767
+# Total lines: 1432
+# Estimated tokens: 5790
+# Characters saved: ~30.0%

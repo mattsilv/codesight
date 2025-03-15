@@ -13,6 +13,8 @@ CURRENT_DIR="$PWD"
 # Source configuration and utilities
 source "$SCRIPT_DIR/config.sh"
 source "$SCRIPT_DIR/utils/common.sh"
+source "$SCRIPT_DIR/utils/gitignore.sh" # Gitignore integration
+source "$SCRIPT_DIR/utils.sh" # Additional utils for more aggressive optimization
 
 # Source command modules
 source "$SCRIPT_DIR/commands/init.sh"
@@ -22,25 +24,9 @@ source "$SCRIPT_DIR/commands/help.sh"
 
 # Display help information
 function show_help() {
-    echo "Usage: ./codesight.sh [command] [options]"
-    echo ""
-    echo "Commands:"
-    echo "  init                   Initialize CodeSight in the current directory"
-    echo "  analyze [directory]    Analyze codebase and generate overview (default: current dir)"
-    echo "  info                   Display information about the configuration"
-    echo "  help                   Show this help message"
-    echo ""
-    echo "Options for analyze:"
-    echo "  --output FILE          Specify output file (default: .codesight/codebase_overview.txt)"
-    echo "  --extensions \"EXT...\"  Space-separated list of file extensions (e.g. \".py .js .md\")"
-    echo "  --max-lines N          Maximum lines per file before truncation (default: $MAX_LINES_PER_FILE)"
-    echo "  --max-files N          Maximum files to include (default: $MAX_FILES)"
-    echo "  --max-size N           Maximum file size in bytes (default: $MAX_FILE_SIZE)"
-    echo ""
-    echo "Examples:"
-    echo "  ./codesight.sh init"
-    echo "  ./codesight.sh analyze --extensions \".py .js .html\""
-    echo "  ./codesight.sh analyze ~/myproject --output myproject_overview.txt"
+    # Call our more detailed help implementation from commands/help.sh
+    source "$SCRIPT_DIR/commands/help.sh"
+    show_help
 }
 
 # Initialize a new project
@@ -146,52 +132,14 @@ function show_info() {
     fi
 }
 
-# Analyze the codebase
-function analyze_codebase() {
-    local directory="$CURRENT_DIR"
-    local output_file="$CURRENT_DIR/codesight.txt"
-    local extensions="$FILE_EXTENSIONS"
-    local max_lines=$MAX_LINES_PER_FILE
-    local max_files=$MAX_FILES
-    local max_size=$MAX_FILE_SIZE
-    
-    # Parse arguments
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            --output)
-                output_file="$2"
-                shift 2
-                ;;
-            --extensions)
-                extensions="$2"
-                shift 2
-                ;;
-            --max-lines)
-                max_lines="$2"
-                shift 2
-                ;;
-            --max-files)
-                max_files="$2"
-                shift 2
-                ;;
-            --max-size)
-                max_size="$2"
-                shift 2
-                ;;
-            *)
-                # Assume it's the directory
-                if [[ ! "$1" == -* ]]; then
-                    directory="$1"
-                    shift
-                else
-                    echo "Unknown option: $1"
-                    show_help
-                    return 1
-                fi
-                ;;
-        esac
-    done
-    
+# Analyze the codebase (legacy function, we now use the one from commands/analyze.sh)
+function legacy_analyze_codebase() {
+    # This function is no longer used, we use the modular version from commands/analyze.sh
+    return 0
+}
+
+# Old logic below - kept for reference
+if false; then
     # Check if initialized
     if [[ ! -d "$CURRENT_DIR/.codesight" ]]; then
         echo "❌ Error: CodeSight not initialized in this directory."
@@ -235,8 +183,12 @@ function analyze_codebase() {
             continue
         fi
         
-        # Get relative path
-        local rel_path=$(realpath --relative-to="$PWD" "$file")
+        # Get relative path - using a portable approach
+        local rel_path="${file#$PWD/}"
+        # If still absolute path, just use the file name
+        if [[ "$rel_path" == /* ]]; then
+            rel_path=$(basename "$file")
+        fi
         
         # Check excluded folders
         local excluded=false
@@ -306,15 +258,16 @@ EOF
     
     # File type statistics
     echo "# FILE TYPES" >> "$output_file"
-    declare -A file_types
     
-    for file in "${files[@]}"; do
-        local ext=$(echo "$file" | grep -o '\.[^.]\+$')
-        file_types["$ext"]=$((file_types["$ext"] + 1))
-    done
-    
-    for ext in "${!file_types[@]}"; do
-        echo "$ext: ${file_types[$ext]} files" >> "$output_file"
+    # Count file extensions without associative arrays for better compatibility
+    for ext in $(for file in "${files[@]}"; do echo "$file" | grep -o '\.[^.]\+$'; done | sort | uniq); do
+        local count=0
+        for file in "${files[@]}"; do
+            if [[ "$file" == *"$ext" ]]; then
+                ((count++))
+            fi
+        done
+        echo "$ext: $count files" >> "$output_file"
     done
     echo "" >> "$output_file"
     
@@ -326,7 +279,11 @@ EOF
         ((file_counter++))
         echo -ne "   Processing file $file_counter of ${#files[@]}...\r"
         
-        local rel_path=$(realpath --relative-to="$PWD" "$file")
+        local rel_path="${file#$PWD/}"
+        # If still absolute path, just use the file name
+        if [[ "$rel_path" == /* ]]; then
+            rel_path=$(basename "$file")
+        fi
         local mod_time=$(date -r "$file" "+%Y-%m-%d %H:%M:%S")
         
         # Get file stats
@@ -403,7 +360,7 @@ EOF
         cat "$output_file" | clip.exe
         echo "   - Overview copied to clipboard (Windows)"
     fi
-}
+fi # Close the if false
 
 # Main function
 function main() {
