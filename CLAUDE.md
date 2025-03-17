@@ -1,7 +1,7 @@
 # CodeSight - Developer Guide
 
 ## Version
-Current version: 0.1.8
+Current version: 0.1.9
 
 ## Commands
 - `./codesight.sh` - Analyze codebase in current directory (shortcut for analyze)
