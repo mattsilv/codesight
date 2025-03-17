@@ -8,6 +8,7 @@ function analyze_codebase() {
     local max_lines=$MAX_LINES_PER_FILE
     local max_files=$MAX_FILES
     local max_size=$MAX_FILE_SIZE
+    local OUTPUT_FILE_SPECIFIED=false
     
     # Parse arguments
     local use_gitignore=$RESPECT_GITIGNORE
@@ -16,6 +17,7 @@ function analyze_codebase() {
         case "$1" in
             --output)
                 output_file="$2"
+                OUTPUT_FILE_SPECIFIED=true
                 shift 2
                 ;;
             --extensions)
@@ -192,6 +194,11 @@ function analyze_codebase() {
     fi
     
     echo "   Found $included_files files to include (from $total_files total)"
+    
+    # Check for updates if this is a standard analyze command (not a custom location)
+    if [[ "$directory" == "$CURRENT_DIR" && -z "$OUTPUT_FILE_SPECIFIED" ]]; then
+        check_for_updates
+    fi
     
     # Generate overview
     echo "📝 Generating codebase overview..."

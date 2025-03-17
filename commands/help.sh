@@ -9,6 +9,7 @@ function show_help() {
     echo "  analyze [directory]    Analyze codebase and generate overview (default: current dir)"
     echo "  visualize [type]       Visualize codebase statistics (files, extensions, etc.)"
     echo "  info                   Display information about the configuration"
+    echo "  update                 Check for newer versions of CodeSight"
     echo "  help                   Show this help message"
     echo ""
     echo "Note: Running './codesight.sh' with no command will default to 'analyze'"

@@ -15,6 +15,7 @@ source "$SCRIPT_DIR/config.sh"
 source "$SCRIPT_DIR/utils/common.sh"
 source "$SCRIPT_DIR/utils/gitignore.sh" # Gitignore integration
 source "$SCRIPT_DIR/utils.sh" # Additional utils for more aggressive optimization
+source "$SCRIPT_DIR/utils/update_check.sh" # Update checker
 
 # Source command modules
 source "$SCRIPT_DIR/commands/init.sh"
@@ -396,6 +397,10 @@ function main() {
             ;;
         version)
             echo "CodeSight version $VERSION"
+            ;;
+        update)
+            echo "Checking for updates..."
+            perform_update_check
             ;;
         *)
             echo "Unknown command: $command"

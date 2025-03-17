@@ -9,6 +9,7 @@ Current version: 0.1.6
 - `./codesight.sh analyze [directory]` - Analyze codebase (default: current dir)
 - `./codesight.sh visualize [type]` - Visualize codebase statistics
 - `./codesight.sh info` - Display configuration information
+- `./codesight.sh update` - Check for newer versions of CodeSight
 - `./codesight.sh help` - Show help message
 
 ## Options for analyze
