@@ -49,3 +49,5 @@ jobs:
           files: |
             codesight-${{ github.ref_name }}.tar.gz
             codesight-${{ github.ref_name }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
