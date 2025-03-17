@@ -38,6 +38,7 @@ function show_help() {
     echo ""
     echo "Options for visualize:"
     echo "  files                  Show largest files by line count (default)"
+    echo "  tokens                 Show files with highest token counts and optimization potential"
     echo "  --limit, -n N          Limit results to N items (default: 10)"
     echo "  --directory, -d DIR    Analyze files in DIR (default: current directory)"
     echo ""
@@ -46,5 +47,6 @@ function show_help() {
     echo "  ./codesight.sh analyze --extensions \".py .js .html\""
     echo "  ./codesight.sh analyze ~/myproject --output myproject_overview.txt"
     echo "  ./codesight.sh visualize files"
+    echo "  ./codesight.sh visualize tokens --limit 5"
     echo "  ./codesight.sh visualize files --limit 15"
 } 

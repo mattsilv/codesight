@@ -9,7 +9,7 @@ function visualize_command() {
     # Parse arguments
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            files|extensions|languages)
+            files|tokens|extensions|languages)
                 visualize_type="$1"
                 shift
                 ;;
@@ -51,6 +51,11 @@ function visualize_command() {
         files)
             display_largest_files "$directory" "$limit" "$FILE_EXTENSIONS"
             ;;
+        tokens)
+            # Source token_stats.sh and display token statistics
+            source "$SCRIPT_DIR/utils/visualize/token_stats.sh"
+            display_token_stats "$directory" "$limit"
+            ;;
         extensions)
             echo "Extension visualization not implemented yet."
             ;;
@@ -71,6 +76,7 @@ function show_visualize_help() {
     echo ""
     echo "Types:"
     echo "  files        Show largest files by line count (default)"
+    echo "  tokens       Show files with highest token counts and optimization potential"
     echo "  extensions   Show distribution of file extensions (coming soon)"
     echo "  languages    Show programming language distribution (coming soon)"
     echo ""
@@ -80,6 +86,7 @@ function show_visualize_help() {
     echo ""
     echo "Examples:"
     echo "  codesight visualize files"
+    echo "  codesight visualize tokens --limit 5"
     echo "  codesight visualize files --limit 15"
     echo "  codesight visualize files --directory ./src"
 }

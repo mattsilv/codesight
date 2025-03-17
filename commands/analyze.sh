@@ -1,6 +1,11 @@
 #!/bin/bash
 # Analyze command functionality
+# This file now serves as a wrapper for the modular analyze functionality
 
+# Source the main analysis module
+source "$SCRIPT_DIR/libs/analyze/analyze_main.sh"
+
+# Keeping the original function name for backward compatibility
 function analyze_codebase() {
     local directory="$CURRENT_DIR"
     local output_file="$CURRENT_DIR/codesight.txt"
@@ -9,6 +14,9 @@ function analyze_codebase() {
     local max_files=$MAX_FILES
     local max_size=$MAX_FILE_SIZE
     local OUTPUT_FILE_SPECIFIED=false
+    
+    # Array to store file stats for top files table
+    declare -a file_stats=()
     
     # Parse arguments
     local use_gitignore=$RESPECT_GITIGNORE
@@ -374,15 +382,24 @@ EOF
     echo "   Overview saved to: $output_file"
     echo "   Stats: ${#files[@]} files, $total_words tokens (saved ~$char_savings%)"
     
-    # Copy to clipboard if possible
-    if command -v pbcopy &>/dev/null; then
-        cat "$output_file" | pbcopy
-        echo "   - Overview copied to clipboard (macOS)"
-    elif command -v xclip &>/dev/null; then
-        cat "$output_file" | xclip -selection clipboard
-        echo "   - Overview copied to clipboard (Linux with xclip)"
-    elif command -v clip.exe &>/dev/null; then
-        cat "$output_file" | clip.exe
-        echo "   - Overview copied to clipboard (Windows)"
+    # During the refactoring process, we're keeping the original function for backward
+    # compatibility, but replacing its implementation with the new modular version.
+    # This allows callers to continue using this function without changes.
+    
+    # The rest of this function is being kept for reference but will be removed
+    # in a future update.
+    
+    # To reduce redundancy, check if we're being called inside the new implementation
+    if [[ "$CODESIGHT_INSIDE_MODULAR_IMPL" != "true" ]]; then
+        # We're not inside the modular implementation, so call it
+        export CODESIGHT_INSIDE_MODULAR_IMPL=true
+        _analyze_codebase_impl "$@"
     fi
+}
+
+# Create alias to original function in module
+_analyze_codebase_impl() {
+    # Call analyze_codebase from the module
+    source "$SCRIPT_DIR/libs/analyze/analyze_main.sh"
+    analyze_codebase "$@"
 }
