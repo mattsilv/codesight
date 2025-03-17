@@ -7,7 +7,7 @@ source "$SCRIPT_DIR/libs/analyze/file_processor.sh"
 source "$SCRIPT_DIR/libs/analyze/output_formatter.sh"
 
 # Main analysis function - refactored version of analyze_codebase
-function analyze_codebase() {
+function analyze_codebase_modular() {
     local directory="$CURRENT_DIR"
     local output_file="$CURRENT_DIR/codesight.txt"
     local extensions="$FILE_EXTENSIONS"
