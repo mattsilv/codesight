@@ -36,8 +36,21 @@ function parse_gitignore_folders() {
             continue
         fi
 
-        # Extract folder patterns (those ending with a slash or without a dot)
-        if [[ "$line" == */ || "$line" != *.* ]]; then
+        # Extract folder patterns with improved handling for various gitignore formats
+        # Handle wildcards and slashes appropriately
+        # First, remove leading slashes if present
+        if [[ "$line" == /* ]]; then
+            line="${line#/}"
+        fi
+            
+        # Extract folder patterns:
+        # 1. Those ending with a slash (explicit directories)
+        # 2. Those without a dot (likely directories)
+        # 3. Those containing wildcards like .*/
+        if [[ "$line" == */ || 
+              ("$line" != *.* && "$line" != *"*"*) || 
+              "$line" == *"*/" ]]; then
+            
             # Remove trailing slash if present
             line="${line%/}"
             
@@ -77,9 +90,17 @@ function collect_files_respecting_gitignore() {
     done
     find_cmd+=" \\)"
     
-    # Add prune conditions for gitignore folders
+    # Add prune conditions for gitignore folders with improved pattern handling
     for folder in "${GITIGNORE_FOLDERS[@]}"; do
-        find_cmd+=" -not -path \"$dir/$folder/*\" -not -path \"$dir/$folder\""
+        # Handle patterns with wildcards
+        if [[ "$folder" == *"*"* ]]; then
+            # Convert gitignore globbing syntax to regex for find's -not -path
+            regex_pattern="${folder//\*/.*}"
+            find_cmd+=" -not -regex \".*$regex_pattern.*\" -not -regex \".*$regex_pattern\""
+        else
+            # Standard folder exclusion
+            find_cmd+=" -not -path \"*/$folder/*\" -not -path \"*/$folder\""
+        fi
     done
     
     # Add prune conditions for default excluded folders
@@ -87,8 +108,19 @@ function collect_files_respecting_gitignore() {
         find_cmd+=" -not -path \"*/$folder/*\" -not -path \"*/$folder\""
     done
     
-    # Execute the find command
+    # Execute the find command with timeout protection
     local count=0
+    local timeout_seconds=60
+    
+    # Wrap the find command with timeout if available
+    if command -v timeout &>/dev/null; then
+        find_cmd="timeout $timeout_seconds $find_cmd"
+    fi
+    
+    # Print the file collection started message
+    echo "   Collecting files (this may take a moment)..."
+    
+    # Use process substitution with timeout protection
     while IFS= read -r file; do
         # Skip excluded files
         local basename=$(basename "$file")
@@ -104,8 +136,24 @@ function collect_files_respecting_gitignore() {
         if [[ "$exclude" == "false" ]]; then
             eval "$output_array+=(\"$file\")"
             ((count++))
+            
+            # Show progress indicator every 100 files
+            if [[ $((count % 100)) -eq 0 ]]; then
+                echo -ne "   Found $count files so far...\r"
+            fi
         fi
-    done < <(eval "$find_cmd")
+    done < <(eval "$find_cmd" 2>/dev/null || echo "ERROR_TIMEOUT")
+    
+    # Check if we got a timeout
+    if [[ ${#files[@]} -eq 0 && "$count" -eq 0 ]]; then
+        echo "   ⚠️ File collection may have timed out or failed. Using alternative method."
+        # Fall back to a simplified find without gitignore for safety
+        local simple_find="find \"$dir\" -type f -path \"$dir\" | head -n 1000"
+        while IFS= read -r file; do
+            eval "$output_array+=(\"$file\")"
+            ((count++))
+        done < <(eval "$simple_find" 2>/dev/null)
+    fi
     
     echo "   Found $count files after folder exclusion filtering"
 }
