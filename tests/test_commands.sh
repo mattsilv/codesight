@@ -18,9 +18,9 @@ echo "def test(): pass" > "$TEST_DIR/test.py"
 echo "# Test markdown" > "$TEST_DIR/test.md"
 
 # Manually check help output
-echo "\n🧪 Testing help command directly..."
+printf "\n🧪 Testing help command directly..."
 $CD_TO_PARENT ./codesight.sh help > /dev/null
-if [ $? -eq 0 ]; then
+if command_status=$?; [ "$command_status" -eq 0 ]; then
     echo "✅ Help command execution test passed"
 else
     echo "❌ Help command execution test failed"
@@ -28,8 +28,8 @@ else
 fi
 
 # Test init command
-echo "\n🧪 Testing init command..."
-cd "$TEST_DIR"
+printf "\n🧪 Testing init command..."
+cd "$TEST_DIR" || exit 1
 $CD_TO_PARENT ./codesight.sh init >/dev/null 2>&1
 if [ -d ".codesight" ]; then
     echo "✅ Init command test passed"
@@ -42,15 +42,15 @@ else
 fi
 
 # Skip info command test for now
-echo "\n🧪 Skipping info command test (requires initialization)"
+printf "\n🧪 Skipping info command test (requires initialization)"
 echo "✅ Info command test skipped"
 
 # Skip analyze command test for now (needs more setup)
-echo "\n🧪 Skipping analyze command test (requires complex environment)"
+printf "\n🧪 Skipping analyze command test (requires complex environment)"
 echo "✅ Analyze command test skipped"
 
 # Clean up test environment
-cd "$PARENT_DIR"
+cd "$PARENT_DIR" || exit 1
 rm -rf "$TEST_DIR"
 
-echo "\n🧪 All tests completed!"
+printf "\n🧪 All tests completed!"

@@ -3,7 +3,7 @@
 
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-FULL_COMMAND="$SCRIPT_DIR/codesight.sh"
+FULL_COMMAND="$SCRIPT_DIR/bin/codesight"
 
 # Detect OS
 if [[ "$OSTYPE" == "darwin"* ]]; then

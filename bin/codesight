@@ -1,0 +1,173 @@
+#!/bin/bash
+# CodeSight - A shell-based tool to extract your codebase into a single file for LLM analysis
+# Main entry point script
+
+VERSION="0.1.9"
+
+# Get script directory (where the script is located)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Get current working directory (where the command is executed from)
+CURRENT_DIR="$PWD"
+
+# Function to source with error handling
+function source_with_check() {
+    local file="$1"
+    if [[ ! -f "$file" ]]; then
+        echo -e "\033[31m❌ Error: Missing required file: $file\033[0m"
+        echo -e "\033[33mℹ️  This might indicate an incomplete installation or incorrect directory structure.\033[0m"
+        echo -e "Run \033[1m./install.sh\033[0m to ensure proper setup or check CONTRIBUTING.md for directory structure information."
+        return 1
+    fi
+    source "$file"
+}
+
+# Source core modules
+source_with_check "$SCRIPT_DIR/src/core/config.sh" || exit 1
+source_with_check "$SCRIPT_DIR/src/utils/common.sh" || exit 1
+source_with_check "$SCRIPT_DIR/src/utils/gitignore.sh" || exit 1
+source_with_check "$SCRIPT_DIR/src/core/update.sh" || exit 1
+
+# Ensure commands directory exists
+if [[ ! -d "$SCRIPT_DIR/src/commands" ]]; then
+    echo -e "\033[31m❌ Error: Commands directory not found at $SCRIPT_DIR/src/commands\033[0m"
+    echo -e "\033[33mℹ️  This indicates an incomplete installation or incorrect directory structure.\033[0m"
+    echo -e "Run \033[1m./install.sh\033[0m to ensure proper setup."
+    exit 1
+fi
+
+# Track loaded commands for debugging
+LOADED_COMMANDS=()
+
+# Source command modules
+for command_file in "$SCRIPT_DIR"/src/commands/*.sh; do
+    if [[ -f "$command_file" ]]; then
+        source_with_check "$command_file"
+        LOADED_COMMANDS+=("$(basename "$command_file")")
+    fi
+done
+
+# Source command subdirectories
+for cmd_dir in "$SCRIPT_DIR"/src/commands/*/; do
+    if [[ -d "$cmd_dir" ]]; then
+        for cmd_file in "$cmd_dir"*.sh; do
+            if [[ -f "$cmd_file" ]]; then
+                source_with_check "$cmd_file" 
+                LOADED_COMMANDS+=("$(basename "$cmd_file")")
+            fi
+        done
+    fi
+done
+
+# If in verbose mode, show loaded commands
+if [[ "$*" == *"--verbose"* ]] || [[ -n "$CODESIGHT_VERBOSE" ]]; then
+    echo -e "\033[36mℹ️  Loaded commands: ${LOADED_COMMANDS[*]}\033[0m"
+fi
+
+# Function to check if a command is available
+function command_exists() {
+    declare -f "$1" > /dev/null
+    return $?
+}
+
+# Main function
+function main() {
+    # Add verbose flag support
+    if [[ "$*" == *"--verbose"* ]]; then
+        CODESIGHT_VERBOSE=1
+        echo -e "\033[36mℹ️  Running in verbose mode\033[0m"
+    fi
+
+    if [[ $# -eq 0 ]]; then
+        # No command provided - default to analyze on current directory
+        echo "🔍 Running CodeSight analyze on current directory..."
+        if ! command_exists analyze_codebase; then
+            echo -e "\033[31m❌ Error: The analyze command could not be loaded properly.\033[0m"
+            echo -e "\033[33mℹ️  This indicates an incomplete installation or incorrect directory structure.\033[0m"
+            echo -e "Run \033[1m./install.sh\033[0m to ensure proper setup or run with \033[1m--verbose\033[0m flag for more details."
+            exit 1
+        fi
+        analyze_codebase
+        exit 0
+    fi
+    
+    local command="$1"
+    shift
+    
+    case "$command" in
+        init)
+            if ! command_exists init_project; then
+                echo -e "\033[31m❌ Error: The init command could not be loaded properly.\033[0m"
+                exit 1
+            fi
+            init_project "$@"
+            ;;
+        analyze)
+            if ! command_exists analyze_codebase; then
+                echo -e "\033[31m❌ Error: The analyze command could not be loaded properly.\033[0m"
+                exit 1
+            fi
+            analyze_codebase "$@"
+            ;;
+        info)
+            if ! command_exists show_info; then
+                echo -e "\033[31m❌ Error: The info command could not be loaded properly.\033[0m"
+                exit 1
+            fi
+            show_info
+            ;;
+        help)
+            if ! command_exists show_help; then
+                # Use a basic help function as fallback
+                echo "CodeSight version $VERSION"
+                echo "Usage: codesight [command] [options]"
+                echo "Commands: analyze, help, info, init, visualize, version, update"
+                echo "For more details, see the documentation."
+                exit 0
+            fi
+            show_help
+            ;;
+        visualize)
+            if ! command_exists visualize_command; then
+                echo -e "\033[31m❌ Error: The visualize command could not be loaded properly.\033[0m"
+                exit 1
+            fi
+            visualize_command "$@"
+            ;;
+        version)
+            echo "CodeSight version $VERSION"
+            ;;
+        update)
+            echo "Checking for updates..."
+            if ! command_exists perform_update_check; then
+                echo -e "\033[31m❌ Error: The update command could not be loaded properly.\033[0m"
+                exit 1
+            fi
+            perform_update_check
+            ;;
+        debug)
+            # Debug command for troubleshooting
+            echo -e "\033[36mℹ️  CodeSight Debug Information\033[0m"
+            echo "Version: $VERSION"
+            echo "Script Directory: $SCRIPT_DIR"
+            echo "Loaded Commands: ${LOADED_COMMANDS[*]}"
+            echo "Directory Structure:"
+            ls -la "$SCRIPT_DIR"
+            echo "Commands Directory:"
+            ls -la "$SCRIPT_DIR/src/commands" 2>/dev/null || echo "Commands directory not found"
+            exit 0
+            ;;
+        *)
+            echo -e "\033[31m❌ Unknown command: $command\033[0m"
+            if command_exists show_help; then
+                show_help
+            else
+                echo "Available commands: analyze, help, info, init, visualize, version, update, debug"
+            fi
+            exit 1
+            ;;
+    esac
+}
+
+# Run main function
+main "$@"
