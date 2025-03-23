@@ -7,7 +7,7 @@ CodeSight is a shell-based tool for analyzing code repositories to produce optim
 ## Features
 
 - Fast analysis of code repositories
-- Intelligent gitignore-aware file traversal
+- Intelligent gitignore-aware file traversal using Git's built-in functionality when available
 - Customizable file extension filters
 - Size and line count limits
 - Pretty output formatting
@@ -73,6 +73,26 @@ shellcheck *.sh */*.sh
 
 # Run pre-release checks
 ./pre_release.sh
+```
+
+## Project Structure
+
+CodeSight follows a modular structure for better organization:
+
+```
+├── src/
+│   ├── commands/        # Command implementations
+│   │   ├── cmd_*.sh     # Main command files
+│   │   ├── analyze/     # Analyze command submodules
+│   │   └── visualize/   # Visualize command submodules
+│   ├── core/            # Core functionality
+│   └── utils/           # Utility functions
+│       ├── common.sh    # Common utilities
+│       ├── logo.sh      # ASCII logo definition
+│       └── collector/   # File collection utilities
+│           └── file_collector.sh # Unified file finding implementation
+├── tests/               # Test scripts
+└── codesight.sh         # Main entry point
 ```
 
 ## Code Quality

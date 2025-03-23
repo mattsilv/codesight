@@ -2,10 +2,10 @@
 # CodeSight - A shell-based tool to extract your codebase into a single file for LLM analysis
 # Main entry point script
 
-VERSION="0.1.10"
+VERSION="0.1.11"
 
 # Get script directory (where the script is located)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && cd .. && pwd)"
 
 # Get current working directory (where the command is executed from)
 CURRENT_DIR="$PWD"
@@ -25,7 +25,7 @@ function source_with_check() {
 # Source core modules
 source_with_check "$SCRIPT_DIR/src/core/config.sh" || exit 1
 source_with_check "$SCRIPT_DIR/src/utils/common.sh" || exit 1
-source_with_check "$SCRIPT_DIR/src/utils/gitignore.sh" || exit 1
+source_with_check "$SCRIPT_DIR/src/utils/collector.sh" || exit 1  # Use the consolidated collector instead of gitignore.sh
 source_with_check "$SCRIPT_DIR/src/core/update.sh" || exit 1
 
 # Ensure commands directory exists
@@ -39,9 +39,18 @@ fi
 # Track loaded commands for debugging
 LOADED_COMMANDS=()
 
-# Source command modules
-for command_file in "$SCRIPT_DIR"/src/commands/*.sh; do
+# Source command modules (cmd_*.sh contains the main command implementations)
+for command_file in "$SCRIPT_DIR"/src/commands/cmd_*.sh; do
     if [[ -f "$command_file" ]]; then
+        source_with_check "$command_file"
+        LOADED_COMMANDS+=("$(basename "$command_file")")
+    fi
+done
+
+# Source other command modules
+for command_file in "$SCRIPT_DIR"/src/commands/*.sh; do
+    # Skip cmd_* files as they're already loaded
+    if [[ -f "$command_file" ]] && [[ ! "$(basename "$command_file")" =~ ^cmd_ ]]; then
         source_with_check "$command_file"
         LOADED_COMMANDS+=("$(basename "$command_file")")
     fi
@@ -62,6 +71,10 @@ done
 # If in verbose mode, show loaded commands
 if [[ "$*" == *"--verbose"* ]] || [[ -n "$CODESIGHT_VERBOSE" ]]; then
     echo -e "\033[36mℹ️  Loaded commands: ${LOADED_COMMANDS[*]}\033[0m"
+    echo -e "\033[36mℹ️  Note: Command structure organization:\033[0m"
+    echo -e "\033[36m   - Main commands are in cmd_*.sh files\033[0m"
+    echo -e "\033[36m   - Command implementations are in subdirectories with the same name\033[0m"
+    echo -e "\033[36m   - Logo is now in its own file at src/utils/logo.sh\033[0m"
 fi
 
 # Function to check if a command is available
@@ -72,15 +85,37 @@ function command_exists() {
 
 # Main function
 function main() {
-    # Add verbose flag support
-    if [[ "$*" == *"--verbose"* ]]; then
-        CODESIGHT_VERBOSE=1
+    local args=()
+    local is_verbose=false
+    
+    # Process arguments to handle verbose flag in any position
+    for arg in "$@"; do
+        if [[ "$arg" == "--verbose" ]]; then
+            CODESIGHT_VERBOSE=1
+            is_verbose=true
+        else
+            args+=("$arg")
+        fi
+    done
+    
+    # If verbose flag was found, show message
+    if [[ "$is_verbose" == "true" ]]; then
         echo -e "\033[36mℹ️  Running in verbose mode\033[0m"
     fi
+    
+    # Replace the arguments with our filtered list
+    set -- "${args[@]}"
+    
+    # Display the logo when starting up (only once per session)
+    display_logo
 
     if [[ $# -eq 0 ]]; then
         # No command provided - default to analyze on current directory
-        echo "🔍 Running CodeSight analyze on current directory..."
+        # Use minimal output unless in verbose mode
+        if [[ -n "$CODESIGHT_VERBOSE" ]]; then
+            echo "🔍 Running CodeSight analyze on current directory..."
+        fi
+        
         if ! command_exists analyze_codebase; then
             echo -e "\033[31m❌ Error: The analyze command could not be loaded properly.\033[0m"
             echo -e "\033[33mℹ️  This indicates an incomplete installation or incorrect directory structure.\033[0m"

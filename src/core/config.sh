@@ -7,6 +7,9 @@ FILE_EXTENSIONS=".py .js .jsx .ts .tsx .html .css .md .json .sh"
 MAX_LINES_PER_FILE=1000
 MAX_FILES=100
 MAX_FILE_SIZE=100000
+# When true, uses Git's built-in check-ignore functionality for .gitignore handling
+# If Git is installed and .gitignore exists, patterns are respected
+# Manual exclusions via EXCLUDED_FILES and EXCLUDED_FOLDERS are always applied
 RESPECT_GITIGNORE=true
 
 # Excluded file patterns
@@ -100,36 +103,67 @@ function clean_content() {
 function is_binary_file() {
     local file="$1"
     
-    # Try file command if available
-    if command -v file &>/dev/null; then
-        local file_type=$(file -b "$file")
-        if [[ "$file_type" == *"executable"* || "$file_type" == *"binary"* ]]; then
-            return 0  # Binary
-        fi
-    fi
-    
-    # Check if the file contains null bytes (simple binary check)
-    if grep -q $'\x00' "$file" 2>/dev/null; then
-        return 0  # Binary
-    fi
-    
-    # Check file extension
+    # Automatically consider common text file types as non-binary
     local ext="${file##*.}"
     case "$ext" in
-        jpg|jpeg|png|gif|bmp|ico|webp|tiff|pdf|doc|docx|xls|xlsx|exe|dll|so|dylib|zip|gz|tar|bin)
+        sh|py|js|jsx|ts|tsx|html|css|md|txt|json|yaml|yml|xml|csv|toml|ini)
+            return 1  # Definitely not binary
+            ;;
+    esac
+    
+    # Check known binary extensions
+    case "$ext" in
+        jpg|jpeg|png|gif|bmp|ico|webp|tiff|pdf|doc|docx|xls|xlsx|exe|dll|so|dylib|zip|gz|tar|bin|o|class|pyc)
             return 0  # Binary
             ;;
     esac
     
+    # For other file types, try additional checks
+    
+    # Try file command if available
+    if command -v file &>/dev/null; then
+        local file_type=$(file -b "$file")
+        if [[ "$file_type" == *"executable"* || "$file_type" == *"binary"* || \
+              "$file_type" == *"data"* ]]; then
+            return 0  # Binary
+        fi
+    fi
+    
+    # Check if the file contains null bytes (reliable binary check)
+    if grep -q $'\x00' "$file" 2>/dev/null; then
+        return 0  # Binary
+    fi
+    
+    # If got here, likely not binary
     return 1  # Not binary
 }
 
 # Count tokens in a piece of text (approximate)
 function count_tokens() {
-    local text="$1"
+    # Read from argument or stdin
+    local text=""
+    if [[ -n "$1" ]]; then
+        text="$1"
+    else
+        # Read content from stdin if no argument provided
+        while IFS= read -r line; do
+            text+="$line"$'\n'
+        done
+    fi
     
-    # Simple approximation: count words
-    local words=$(echo "$text" | wc -w | tr -d ' ')
+    # Make sure text is not empty
+    if [[ -z "$text" ]]; then
+        echo "0"
+        return
+    fi
     
-    echo "$words"
+    # Simple approximation: count words, use tr to remove extra whitespace
+    local words=$(echo "$text" | wc -w | tr -d ' \t')
+    
+    # Return zero if words is empty or not a number
+    if [[ -z "$words" || ! "$words" =~ ^[0-9]+$ ]]; then
+        echo "0"
+    else
+        echo "$words"
+    fi
 }

@@ -9,63 +9,46 @@ function display_largest_files() {
     
     echo "📊 Finding the $limit largest files in your codebase..."
     
-    # Convert extensions into a format suitable for find
-    IFS=' ' read -ra ext_array <<< "$extensions"
-    find_extensions=""
-    for ext in "${ext_array[@]}"; do
-        if [[ -z "$find_extensions" ]]; then
-            find_extensions="-name \"*$ext\""
-        else
-            find_extensions="$find_extensions -o -name \"*$ext\""
-        fi
-    done
-    
-    # Check if we're respecting gitignore
-    local gitignore_filter=""
-    if [[ "$RESPECT_GITIGNORE" == "true" && -f "$directory/.gitignore" ]]; then
-        echo "   Respecting .gitignore patterns"
-        # We'll use our gitignore utility here if integrated later
-    fi
-    
-    # Build the find command to locate files
-    local find_cmd="find \"$directory\" -type f \\( $find_extensions \\)"
-    
-    # For each excluded folder, add a -not -path clause
-    for folder in "${EXCLUDED_FOLDERS[@]}"; do
-        find_cmd="$find_cmd -not -path \"*/$folder/*\""
-    done
-    
-    # Execute the find command and pipe to file size calculation
+    # Use our unified file collector
     echo "   Analyzing files..."
     
-    # Create a temporary file to store valid files
+    # Create a temporary array to hold the files
+    local file_array_name="largest_files_array"
+    declare -a "$file_array_name"
+    
+    # Use the consolidated collector to get all matching files
+    # Note that we're using the special collect_largest_files function for this purpose
+    collect_largest_files "$directory" "$limit" "$extensions" "$file_array_name"
+    
+    # Create a temporary file to store valid files with line counts
     local valid_files_list="/tmp/codesight_valid_files.txt"
     > "$valid_files_list"
     
-    # Check that files exist before counting lines
-    # Using command substitution instead of eval
-    while read -r file; do
-        if [[ -f "$file" ]]; then
-            echo "$file" >> "$valid_files_list"
-        else
-            echo "❌ File not found: $file" >&2
-        fi
-    done < <(eval "$find_cmd")
-    
-    # Get top files by line count - handle cross-platform compatibility
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        # macOS version
-        cat "$valid_files_list" | xargs wc -l 2>/dev/null | sort -nr | head -n "$((limit+1))" > /tmp/codesight_largest_files.txt
+    # Process each file to get line count
+    if [[ "${BASH_VERSINFO[0]}" -ge 4 && "${BASH_VERSINFO[1]}" -ge 3 ]]; then
+        declare -n array_ref="$file_array_name"
+        for file in "${array_ref[@]}"; do
+            if [[ -f "$file" ]]; then
+                local line_count=$(wc -l < "$file" 2>/dev/null)
+                echo "$line_count $file" >> "$valid_files_list"
+            fi
+        done
     else
-        # Linux/other version
-        cat "$valid_files_list" | xargs wc -l 2>/dev/null | sort -nr | head -n "$((limit+1))" > /tmp/codesight_largest_files.txt
+        # Fallback for older bash versions
+        eval "for file in \"\${$file_array_name[@]}\"; do
+            if [[ -f \"\$file\" ]]; then
+                local line_count=\$(wc -l < \"\$file\" 2>/dev/null)
+                echo \"\$line_count \$file\" >> \"$valid_files_list\"
+            fi
+        done"
     fi
     
-    # Clean up the valid files list
-    rm -f "$valid_files_list"
+    # Sort by line count (largest first)
+    sort -nr "$valid_files_list" > "/tmp/codesight_largest_files.txt"
+    mv "/tmp/codesight_largest_files.txt" "$valid_files_list"
     
     # Check if we have results
-    if [[ ! -s /tmp/codesight_largest_files.txt ]]; then
+    if [[ ! -s $valid_files_list ]]; then
         echo "❌ No files found matching the criteria."
         return 1
     fi
@@ -110,7 +93,7 @@ function display_largest_files() {
         # Store data in arrays
         line_counts+=($line_count)
         file_paths+=("$rel_path")
-    done < /tmp/codesight_largest_files.txt
+    done < "$valid_files_list"
     
     # Cap maximum path length display to terminal width
     local terminal_width=80
@@ -174,5 +157,5 @@ function display_largest_files() {
     echo "$bottom_line"
     
     # Clean up temp file
-    rm -f /tmp/codesight_largest_files.txt
+    rm -f "$valid_files_list"
 }

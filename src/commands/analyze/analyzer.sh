@@ -85,8 +85,6 @@ function analyze_codebase_modular() {
         echo "🔍 Analyzing codebase in '$directory'..."
         echo "   Extensions: $extensions"
         echo "   Max lines: $max_lines, Max files: $max_files"
-    else
-        echo "Analyzing..."
     fi
     
     # Step 1: Collect files matching criteria
@@ -95,28 +93,8 @@ function analyze_codebase_modular() {
     fi
     files=()
     
-    # Simple workaround - populate array directly
-    if [[ "$extensions" == ".sh" ]]; then
-        files=($(find "$directory" -type f -name "*.sh" -not -path "*/\.git/*" -not -path "*/node_modules/*"))
-    else
-        # The original collection logic doesn't work, so we need this workaround
-        # Split extensions and build the find command
-        IFS=' ' read -ra ext_array <<< "$extensions"
-        find_args=()
-        for ext in "${ext_array[@]}"; do
-            if [[ "$ext" == .* ]]; then
-                find_args+=("*$ext")
-            else
-                find_args+=("*.$ext")
-            fi
-        done
-        
-        # Build the find command dynamically
-        for pattern in "${find_args[@]}"; do
-            temp_files=($(find "$directory" -type f -name "$pattern" -not -path "*/\.git/*" -not -path "*/node_modules/*"))
-            files+=("${temp_files[@]}")
-        done
-    fi
+    # Use the consolidated file collection function
+    collect_files "$directory" "$extensions" "$max_files" "$max_size" "$use_gitignore" "files"
     
     if [[ -n "$CODESIGHT_VERBOSE" ]]; then
         echo "   Debug: After collection, files array size: ${#files[@]}" >&2
@@ -140,16 +118,16 @@ function analyze_codebase_modular() {
     # Parse summary stats
     IFS='|' read -r total_words char_savings line_savings <<< "$summary_stats"
     
-    # Print summary to console
+    # Print summary to console with emojis
     echo "✅ Analysis complete!"
     echo "   Overview saved to: $output_file"
-    echo "   Stats: ${#files[@]} files, $total_words tokens (saved ~$char_savings%)"
     
     # Display token statistics table if available
     if [[ ${#files[@]} -gt 0 ]]; then
-        # Only show stats if we have files
+        # Source the tokens script
         source "$SCRIPT_DIR/src/commands/visualize/tokens.sh"
-        # Use our existing files array rather than finding files again
+        
+        # Use our existing files array rather than finding files again 
         display_token_stats "$directory" 5 "$output_file" "${files[@]}"
     else
         # Display empty table

@@ -1,6 +1,13 @@
 #!/bin/bash
 # CodeSight visualization commands
 
+# Source the core modules
+source "$SCRIPT_DIR/src/utils/collector.sh"  # Use the consolidated collector
+
+# Source the visualization submodules
+source "$SCRIPT_DIR/src/commands/visualize/files.sh"
+source "$SCRIPT_DIR/src/commands/visualize/tokens.sh"
+
 # Help function for visualize command
 function show_visualize_help() {
     echo "CodeSight Visualization Commands"
