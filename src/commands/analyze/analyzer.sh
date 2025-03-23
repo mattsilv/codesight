@@ -80,14 +80,20 @@ function analyze_codebase_modular() {
     # Create output directory
     mkdir -p "$(dirname "$output_file")"
     
-    echo "🔍 Analyzing codebase in '$directory'..."
-    echo "   Extensions: $extensions"
-    echo "   Max lines: $max_lines, Max files: $max_files"
+    # Only show detailed output in verbose mode
+    if [[ -n "$CODESIGHT_VERBOSE" ]]; then
+        echo "🔍 Analyzing codebase in '$directory'..."
+        echo "   Extensions: $extensions"
+        echo "   Max lines: $max_lines, Max files: $max_files"
+    else
+        echo "Analyzing..."
+    fi
     
     # Step 1: Collect files matching criteria
-    echo "   Debug: Setting up files array" >&2
+    if [[ -n "$CODESIGHT_VERBOSE" ]]; then
+        echo "   Debug: Setting up files array" >&2
+    fi
     files=()
-    echo "   Debug: Initial files array size: ${#files[@]}" >&2
     
     # Simple workaround - populate array directly
     if [[ "$extensions" == ".sh" ]]; then
@@ -112,7 +118,9 @@ function analyze_codebase_modular() {
         done
     fi
     
-    echo "   Debug: After collection, files array size: ${#files[@]}" >&2
+    if [[ -n "$CODESIGHT_VERBOSE" ]]; then
+        echo "   Debug: After collection, files array size: ${#files[@]}" >&2
+    fi
     
     # Check for updates if this is a standard analyze command (not a custom location)
     if [[ "$directory" == "$CURRENT_DIR" && -z "$OUTPUT_FILE_SPECIFIED" ]]; then

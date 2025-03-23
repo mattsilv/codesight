@@ -166,25 +166,79 @@ function display_token_stats() {
         top_stats=("${sorted_stats[@]:0:$display_limit}")
     fi
     
-    # Display the table
+    # Display the table with improved formatting
     echo ""
     echo "🔤 Top $limit files by token count:"
-    echo "┌─────────────────────────────────────────────┬───────────┬───────────┬──────────┬───────┐"
-    echo "│ File Path                                   │ Raw       │ Optimized │ Savings  │ Lines │"
-    echo "├─────────────────────────────────────────────┼───────────┼───────────┼──────────┼───────┤"
+    
+    # Calculate column widths based on content and terminal size
+    local terminal_width=80
+    if command -v tput &>/dev/null; then
+        terminal_width=$(tput cols 2>/dev/null || echo 80)
+    fi
+    
+    # Set default column widths
+    local path_width=43
+    local raw_width=9
+    local opt_width=9
+    local savings_width=8
+    local lines_width=5
+    
+    # Find max path width if we have data
+    if [[ ${#top_stats[@]} -gt 0 ]]; then
+        local max_path_width=0
+        for stat in "${top_stats[@]}"; do
+            IFS='|' read -r file_path _ _ _ _ <<< "$stat"
+            if [[ ${#file_path} -gt $max_path_width ]]; then
+                max_path_width=${#file_path}
+            fi
+        done
+        
+        # Adjust path width but don't exceed terminal width
+        path_width=$((max_path_width < 43 ? 43 : max_path_width))
+        
+        # Total width including borders = path + raw + opt + savings + lines + borders
+        local total_width=$((path_width + raw_width + opt_width + savings_width + lines_width + 14))
+        
+        # If too wide for terminal, reduce path width
+        if [[ $total_width -gt $terminal_width ]]; then
+            path_width=$((path_width - (total_width - terminal_width)))
+            # Ensure minimum width
+            path_width=$((path_width < 20 ? 20 : path_width))
+        fi
+    fi
+    
+    # Build dynamic table borders
+    local path_dashes=$(printf '%*s' $((path_width+2)) '' | tr ' ' '─')
+    local raw_dashes=$(printf '%*s' $((raw_width+2)) '' | tr ' ' '─')
+    local opt_dashes=$(printf '%*s' $((opt_width+2)) '' | tr ' ' '─')
+    local savings_dashes=$(printf '%*s' $((savings_width+2)) '' | tr ' ' '─')
+    local lines_dashes=$(printf '%*s' $((lines_width+2)) '' | tr ' ' '─')
+    
+    # Construct table borders
+    local top_border="┌${path_dashes}┬${raw_dashes}┬${opt_dashes}┬${savings_dashes}┬${lines_dashes}┐"
+    local header_sep="├${path_dashes}┼${raw_dashes}┼${opt_dashes}┼${savings_dashes}┼${lines_dashes}┤"
+    local bottom_border="└${path_dashes}┴${raw_dashes}┴${opt_dashes}┴${savings_dashes}┴${lines_dashes}┘"
+    
+    # Create header with proper spacing
+    local header=$(printf "│ %-${path_width}s │ %-${raw_width}s │ %-${opt_width}s │ %-${savings_width}s │ %-${lines_width}s │" "File Path" "Raw" "Optimized" "Savings" "Lines")
+    
+    # Print table header
+    echo "$top_border"
+    echo "$header"
+    echo "$header_sep"
     
     if [[ ${#top_stats[@]} -eq 0 ]]; then
         # No files found, display empty table
-        echo "│ No files found                              │           │           │          │       │"
+        printf "│ %-${path_width}s │ %-${raw_width}s │ %-${opt_width}s │ %-${savings_width}s │ %-${lines_width}s │\n" \
+            "No files found" "" "" "" ""
     else
         for stat in "${top_stats[@]}"; do
             IFS='|' read -r file_path raw_tokens opt_tokens savings lines <<< "$stat"
             
             # Truncate long paths if needed
-            local max_path_length=43  # Maximum characters to display
-            if [[ ${#file_path} -gt $max_path_length ]]; then
+            if [[ ${#file_path} -gt $path_width ]]; then
                 # Truncate and add ellipsis
-                file_path="...${file_path:(-$max_path_length+3)}"
+                file_path="...${file_path:(-$path_width+3)}"
             fi
             
             # Format the savings with color if possible
@@ -193,16 +247,16 @@ function display_token_stats() {
             
             # Format and display the row
             if [[ -t 1 ]]; then # Check if output is terminal
-                printf "│ %-43s │ %-9s │ %-9s │ ${savings_color}%6s%%${reset_color} │ %5s │\n" \
+                printf "│ %-${path_width}s │ %-${raw_width}s │ %-${opt_width}s │ ${savings_color}%${savings_width}s%%${reset_color} │ %${lines_width}s │\n" \
                     "$file_path" "$raw_tokens" "$opt_tokens" "$savings" "$lines"
             else
-                printf "│ %-43s │ %-9s │ %-9s │ %6s%% │ %5s │\n" \
+                printf "│ %-${path_width}s │ %-${raw_width}s │ %-${opt_width}s │ %${savings_width}s%% │ %${lines_width}s │\n" \
                     "$file_path" "$raw_tokens" "$opt_tokens" "$savings" "$lines"
             fi
         done
     fi
     
-    echo "└─────────────────────────────────────────────┴───────────┴───────────┴──────────┴───────┘"
+    echo "$bottom_border"
     
     # Add note about potential savings
     echo "   💡 Files with high token counts may benefit from refactoring or exclusion."

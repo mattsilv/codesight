@@ -99,6 +99,13 @@ function process_files() {
     
     echo "📝 Generating codebase overview..."
     
+    # Check if we can use GNU parallel for faster processing
+    local use_parallel=false
+    if command -v parallel &>/dev/null; then
+        use_parallel=true
+        echo "   Using parallel processing for faster execution"
+    fi
+    
     # Initialize variables for statistics
     local total_chars=0
     local total_lines=0
@@ -110,18 +117,141 @@ function process_files() {
     eval "local files=(\"\${$files_array_name[@]}\")"
     local file_counter=0
     
-    for file in "${files[@]}"; do
-        ((file_counter++))
-        echo -ne "   Processing file $file_counter of ${#files[@]}...\r"
+    if [[ "$use_parallel" == "true" ]]; then
+        # Create a temp directory for parallel processing
+        local temp_dir="/tmp/codesight_parallel_processing"
+        mkdir -p "$temp_dir"
         
-        # Process each file
-        process_file "$file" "$max_lines" "$output_file" "$ultra_compact" "$abbreviate_headers" \
-            "$truncate_paths" "$short_date" "total_lines" "total_chars" "total_words" \
-            "original_lines" "original_chars"
-    done
-    
-    # Return statistics via nameref variables
-    echo ""
+        # Create a temp file for each file to process
+        > "$output_file"  # Initialize the output file
+        local stats_file="$temp_dir/stats.txt"
+        > "$stats_file"   # Initialize the stats file
+        
+        # Create the parallel worker script
+        local worker_script="$temp_dir/process_file.sh"
+        cat > "$worker_script" << 'EOF'
+#!/bin/bash
+file="$1"
+max_lines="$2"
+output_chunk="$3"
+stats_file="$4"
+ultra_compact="$5"
+abbreviate_headers="$6"
+truncate_paths="$7"
+short_date="$8"
+file_index="$9"
+script_dir="${10}"
+
+# Source required functions
+source "$script_dir/src/commands/analyze/analyzer.sh"
+
+# Get relative path
+rel_path="${file#$PWD/}"
+if [[ "$rel_path" == /* ]]; then
+    rel_path=$(basename "$file")
+fi
+
+# Truncate paths if configured
+if [[ "$truncate_paths" == "true" ]]; then
+    rel_path=$(echo "$rel_path" | rev | cut -d'/' -f1-2 | rev)
+fi
+
+# Format date
+if [[ "$short_date" == "true" ]]; then
+    mod_time=$(date -r "$file" "+%y%m%d")
+else
+    mod_time=$(date -r "$file" "+%Y-%m-%d")
+fi
+
+# Get file stats
+file_lines=$(wc -l < "$file")
+file_chars=$(wc -c < "$file")
+
+# Process file content
+if [[ $file_lines -gt $max_lines ]]; then
+    truncated="+"
+    content=$(head -n $max_lines "$file")
+else
+    truncated=""
+    content=$(cat "$file")
+fi
+
+# Clean content
+cleaned_content=$(echo "$content" | clean_content)
+
+# Get processed stats
+processed_lines=$(echo "$cleaned_content" | wc -l)
+processed_chars=$(echo "$cleaned_content" | wc -c)
+processed_words=$(echo "$cleaned_content" | wc -w)
+
+# Write stats to the stats file (with file index for ordering)
+echo "$file_index|$processed_lines|$processed_chars|$processed_words|$file_lines|$file_chars" >> "$stats_file"
+
+# Write to output chunk based on configuration
+if [[ "$ultra_compact" == "true" ]]; then
+    echo -e ">$rel_path" > "$output_chunk"
+    echo "W$processed_words M$mod_time$truncated" >> "$output_chunk"
+else
+    if [[ "$abbreviate_headers" == "true" ]]; then
+        echo -e ">$rel_path" > "$output_chunk"
+        echo "# Words: $processed_words | Modified: $mod_time$truncated" >> "$output_chunk"
+    else
+        echo -e "# File: $rel_path" > "$output_chunk"
+        echo "# Words: $processed_words | Lines: $processed_lines | Modified: $mod_time$truncated" >> "$output_chunk"
+    fi
+fi
+
+echo "\`\`\`" >> "$output_chunk"
+echo "$cleaned_content" >> "$output_chunk"
+echo "\`\`\`" >> "$output_chunk"
+echo "" >> "$output_chunk"
+EOF
+        chmod +x "$worker_script"
+        
+        # Process files in parallel
+        local parallel_cmd=""
+        local index=0
+        for file in "${files[@]}"; do
+            local output_chunk="$temp_dir/chunk_$index.txt"
+            parallel_cmd+="$worker_script '$file' $max_lines '$output_chunk' '$stats_file' $ultra_compact $abbreviate_headers $truncate_paths $short_date $index '$SCRIPT_DIR' & "
+            ((index++))
+        done
+        
+        # Execute all processes and wait for completion
+        eval "$parallel_cmd wait"
+        
+        # Combine output chunks in order
+        for ((i=0; i<${#files[@]}; i++)); do
+            if [[ -f "$temp_dir/chunk_$i.txt" ]]; then
+                cat "$temp_dir/chunk_$i.txt" >> "$output_file"
+            fi
+        done
+        
+        # Process stats file
+        if [[ -f "$stats_file" ]]; then
+            while IFS='|' read -r _ lines chars words orig_lines orig_chars; do
+                ((total_lines+=lines))
+                ((total_chars+=chars))
+                ((total_words+=words))
+                ((original_lines+=orig_lines))
+                ((original_chars+=orig_chars))
+            done < "$stats_file"
+        fi
+        
+        # Clean up temp files
+        rm -rf "$temp_dir"
+    else
+        # Serial processing (original approach)
+        for file in "${files[@]}"; do
+            ((file_counter++))
+            echo -ne "   Processing file $file_counter of ${#files[@]}...\r"
+            
+            # Process each file
+            process_file "$file" "$max_lines" "$output_file" "$ultra_compact" "$abbreviate_headers" \
+                "$truncate_paths" "$short_date" "total_lines" "total_chars" "total_words" \
+                "original_lines" "original_chars"
+        done
+    fi
     
     # Return statistics in a standardized format
     echo "$total_lines|$total_chars|$total_words|$original_lines|$original_chars"

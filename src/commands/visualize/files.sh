@@ -72,14 +72,17 @@ function display_largest_files() {
     # Display results as a formatted table, excluding the total line which is always the first line
     echo ""
     echo "📏 Top $limit largest files by line count:"
-    echo "┌───────────────┬─────────────────────────────────────────────────────────┐"
-    echo "│ Lines         │ File Path                                               │"
-    echo "├───────────────┼─────────────────────────────────────────────────────────┤"
+    
+    # Improved table display with better column handling
+    # First collect all data into arrays for consistent formatting
+    local -a line_counts=()
+    local -a file_paths=()
+    local max_path_length=0
     
     # Skip the first line if it's the total count line
-    # Then display the remaining top N files from the temp file
+    # Then collect data for remaining top N files from the temp file
     local line_number=0
-    cat /tmp/codesight_largest_files.txt | while read -r line; do
+    while read -r line; do
         ((line_number++))
         
         # Skip the first line if it contains the total word count
@@ -98,17 +101,53 @@ function display_largest_files() {
             rel_path=$(basename "$file_path")
         fi
         
-        # Format and display the row, truncating long paths if needed
-        local max_path_length=55  # Maximum characters to display
+        # Track for max path length for optimal table width
         if [[ ${#rel_path} -gt $max_path_length ]]; then
-            # Truncate and add ellipsis
-            rel_path="...${rel_path:(-$max_path_length+3)}"
+            max_path_length=${#rel_path}
         fi
         
-        printf "│ %-13s │ %-55s │\n" "$line_count" "$rel_path"
+        # Store data in arrays
+        line_counts+=($line_count)
+        file_paths+=("$rel_path")
+    done < /tmp/codesight_largest_files.txt
+    
+    # Cap maximum path length display to terminal width
+    local terminal_width=80
+    if command -v tput &>/dev/null; then
+        terminal_width=$(tput cols 2>/dev/null || echo 80)
+    fi
+    
+    # Allow at least 55 chars for path, but limit based on terminal width
+    local display_path_length=$((max_path_length < 55 ? 55 : max_path_length))
+    if [[ $((display_path_length + 20)) -gt $terminal_width ]]; then
+        display_path_length=$((terminal_width - 20))
+    fi
+    
+    # Build table top based on calculated width
+    local top_line="┌───────────────┬${"-":\0:$((display_path_length+2))}┐"
+    local header_line="│ Lines         │ File Path${" ":\0:$((display_path_length-9))}│"
+    local separator_line="├───────────────┼${"-":\0:$((display_path_length+2))}┤"
+    local bottom_line="└───────────────┴${"-":\0:$((display_path_length+2))}┘"
+    
+    echo "$top_line"
+    echo "$header_line"
+    echo "$separator_line"
+    
+    # Display rows with consistent formatting
+    for ((i=0; i<${#line_counts[@]}; i++)); do
+        local rel_path="${file_paths[$i]}"
+        local line_count="${line_counts[$i]}"
+        
+        # Truncate long paths if needed
+        if [[ ${#rel_path} -gt $display_path_length ]]; then
+            # Truncate and add ellipsis
+            rel_path="...${rel_path:(-$display_path_length+3)}"
+        fi
+        
+        printf "│ %-13s │ %-${display_path_length}s │\n" "$line_count" "$rel_path"
     done
     
-    echo "└───────────────┴─────────────────────────────────────────────────────────┘"
+    echo "$bottom_line"
     
     # Clean up temp file
     rm -f /tmp/codesight_largest_files.txt
