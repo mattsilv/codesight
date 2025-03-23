@@ -16,8 +16,8 @@ function collect_files() {
     
     echo "📂 Collecting files..."
     
-    # Check if using gitignore integration
-    if [[ "$use_gitignore" == "true" ]]; then
+    # Check if using gitignore integration - only show messages in verbose mode
+    if [[ "$use_gitignore" == "true" ]] && [[ -n "$CODESIGHT_VERBOSE" ]]; then
         if [[ -f "$directory/.gitignore" ]]; then
             if command -v git &>/dev/null; then
                 echo "   Using Git's built-in .gitignore handling"

@@ -1,1 +1,1 @@
-bin/codesight
+codesight-wrapper.sh

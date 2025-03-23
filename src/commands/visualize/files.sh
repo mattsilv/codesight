@@ -10,7 +10,9 @@ function display_largest_files() {
     echo "📊 Finding the $limit largest files in your codebase..."
     
     # Use our unified file collector
-    echo "   Analyzing files..."
+    if [[ -n "$CODESIGHT_VERBOSE" ]]; then
+        echo "   Analyzing files..."
+    fi
     
     # Create a temporary array to hold the files
     local file_array_name="largest_files_array"

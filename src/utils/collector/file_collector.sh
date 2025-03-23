@@ -48,12 +48,21 @@ function collect_files_unified() {
             gitignore_exists=true
             if command -v git &>/dev/null; then
                 use_git=true
-                echo "   Using Git's built-in .gitignore handling"
+                # Only show message in verbose mode
+                if [[ -n "$CODESIGHT_VERBOSE" ]]; then
+                    echo "   Using Git's built-in .gitignore handling"
+                fi
             else
-                echo "   .gitignore found but Git not available. Patterns will be ignored."
+                # Only show message in verbose mode
+                if [[ -n "$CODESIGHT_VERBOSE" ]]; then
+                    echo "   .gitignore found but Git not available. Patterns will be ignored."
+                fi
             fi
         else
-            echo "   No .gitignore found. Using standard exclusion rules."
+            # Only show message in verbose mode
+            if [[ -n "$CODESIGHT_VERBOSE" ]]; then
+                echo "   No .gitignore found. Using standard exclusion rules."
+            fi
         fi
     fi
     
@@ -394,8 +403,8 @@ EOF
             
             ((included_files++))
             
-            # Show progress
-            if [[ $((included_files % 10)) -eq 0 ]]; then
+            # Show progress only in verbose mode
+            if [[ -n "$CODESIGHT_VERBOSE" ]] && [[ $((included_files % 10)) -eq 0 ]]; then
                 echo -ne "   Progress: $included_files files included...\r"
             fi
         done < <(eval $find_cmd)

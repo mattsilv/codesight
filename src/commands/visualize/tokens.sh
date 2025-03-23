@@ -38,8 +38,10 @@ function display_token_stats() {
     if [[ ${#provided_files[@]} -gt 0 ]]; then
         files=("${provided_files[@]}")
     else
-        echo "   Finding files to analyze..."
         # Use the consolidated file collection function for shell scripts
+        if [[ -n "$CODESIGHT_VERBOSE" ]]; then
+            echo "   Finding files to analyze..."
+        fi
         collect_files_by_type "$directory" "sh" "files"
     fi
     
@@ -87,7 +89,9 @@ function display_token_stats() {
         # Make sure the temp file exists and is empty
         > "$tmp_sort_file"
         
-        echo "   Sorting files by token count..." >&2
+        if [[ -n "$CODESIGHT_VERBOSE" ]]; then
+            echo "   Sorting files by token count..." >&2
+        fi
         
         # Write stats to temp file
         for stat in "${file_stats[@]}"; do
