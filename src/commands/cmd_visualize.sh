@@ -2,7 +2,11 @@
 # CodeSight visualization commands
 
 # Source the core modules
-source "$SCRIPT_DIR/src/utils/collector.sh"  # Use the consolidated collector
+if [[ -f "$SCRIPT_DIR/src/utils/collector/file_collector.sh" ]]; then
+    source "$SCRIPT_DIR/src/utils/collector/file_collector.sh"
+else
+    echo "⚠️ Warning: File collector module not found!" >&2
+fi
 
 # Source the visualization submodules
 source "$SCRIPT_DIR/src/commands/visualize/files.sh"
@@ -79,7 +83,22 @@ function visualize_command() {
             display_largest_files "$directory" "$limit" "$FILE_EXTENSIONS"
             ;;
         tokens)
-            display_token_stats "$directory" "$limit"
+            if [[ -n "$(declare -F collect_files)" ]]; then
+                # First collect files using the standard collector
+                local files=()
+                echo "📂 Collecting files for token analysis..."
+                collect_files "$directory" "$FILE_EXTENSIONS" "100" "$MAX_FILE_SIZE" "$RESPECT_GITIGNORE" "files"
+                
+                # Then display stats using collected files
+                if [[ ${#files[@]} -gt 0 ]]; then
+                    display_token_stats "$directory" "$limit" "$CURRENT_DIR/codesight.txt" "${files[@]}"
+                else
+                    display_token_stats "$directory" "$limit"
+                fi
+            else
+                # Fallback to simple implementation
+                display_token_stats "$directory" "$limit"
+            fi
             ;;
         extensions)
             echo "📊 Visualizing files by extension type..."

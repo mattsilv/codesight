@@ -13,6 +13,7 @@ function display_token_stats() {
         directory="$PWD"
     fi
     
+    # IMPORTANT: This controls how many files to display - default is now 10
     local limit="${2:-10}"
     # Ensure limit is a number, fallback to 10
     if ! [[ "$limit" =~ ^[0-9]+$ ]]; then
@@ -22,9 +23,17 @@ function display_token_stats() {
     fi
     
     local output_file="${3:-$CURRENT_DIR/codesight.txt}"
+    # Shift to get provided files
+    shift 3
+    local provided_files=("$@")
+    
+    # Ensure file collector utility is loaded
+    if [[ -f "$SCRIPT_DIR/src/utils/collector/file_collector.sh" ]] && [[ -z "$(declare -F collect_files)" ]]; then
+        source "$SCRIPT_DIR/src/utils/collector/file_collector.sh"
+    fi
     
     # We'll just use directory instead of additional files for the simplified implementation
-    local provided_files=()
+    local files=()
     
     # Files need to be analyzed individually through the CodeSight process
     local temp_dir="/tmp/codesight_token_analysis"
@@ -34,15 +43,28 @@ function display_token_stats() {
     rm -f "$temp_dir"/* 2>/dev/null
     
     # Use provided files if available, otherwise find them
-    local files=()
     if [[ ${#provided_files[@]} -gt 0 ]]; then
         files=("${provided_files[@]}")
     else
-        # Use the consolidated file collection function for shell scripts
-        if [[ -n "$CODESIGHT_VERBOSE" ]]; then
-            echo "   Finding files to analyze..."
+        # Try to use collect_files function if it's available (imported from analyzer.sh)
+        if [[ -n "$(declare -F collect_files)" ]]; then
+            # Use the standard file collection method
+            collect_files "$directory" ".sh" "10" "1000000" "true" "files"
+        else
+            # Fallback to a simple find command
+            if [[ -n "$CODESIGHT_VERBOSE" ]]; then
+                echo "   Finding files to analyze using simple find..." >&2
+            fi
+            
+            # Simple find command to get shell scripts
+            while IFS= read -r file; do
+                # Skip files that are too large or don't exist
+                if [[ ! -f "$file" || $(wc -c < "$file" 2>/dev/null || echo 1000000) -gt 100000 ]]; then
+                    continue
+                fi
+                files+=("$file")
+            done < <(find "$directory" -type f -name "*.sh" -not -path "*/\.*" | sort)
         fi
-        collect_files_by_type "$directory" "sh" "files"
     fi
     
     # Process each file to calculate raw and optimized tokens
@@ -115,18 +137,19 @@ function display_token_stats() {
     echo ""
     echo "🔤 Top $limit files by token count:"
     
+    # ===== TABLE FORMATTING - DO NOT MODIFY UNLESS YOU'RE FIXING ALIGNMENT ISSUES =====
     # Calculate column widths based on content and terminal size
     local terminal_width=80
     if command -v tput &>/dev/null; then
         terminal_width=$(tput cols 2>/dev/null || echo 80)
     fi
     
-    # Set default column widths
-    local path_width=40
-    local raw_width=10
-    local opt_width=10
-    local savings_width=10
-    local lines_width=7
+    # Set default column widths - MODIFY THESE VALUES IF YOU NEED TO ADJUST COLUMN WIDTHS
+    local path_width=40  # Width for file paths
+    local raw_width=10   # Width for raw token counts
+    local opt_width=10   # Width for optimized token counts
+    local savings_width=10  # Width for savings percentage
+    local lines_width=7   # Width for line counts
     
     # Find max path width if we have data
     if [[ ${#top_stats[@]} -gt 0 ]]; then
@@ -153,18 +176,20 @@ function display_token_stats() {
     fi
     
     # Build dynamic table borders - ensure exact column width matches
+    # DO NOT modify the format of these lines - they ensure proper table borders
     local path_dashes=$(printf '%*s' $path_width '' | tr ' ' '─')
     local raw_dashes=$(printf '%*s' $raw_width '' | tr ' ' '─')
     local opt_dashes=$(printf '%*s' $opt_width '' | tr ' ' '─')
     local savings_dashes=$(printf '%*s' $savings_width '' | tr ' ' '─')
     local lines_dashes=$(printf '%*s' $lines_width '' | tr ' ' '─')
     
+    # CRITICAL - DO NOT CHANGE THESE BOX DRAWING CHARACTERS - THEY ENSURE PROPER TABLE FORMATTING
     # Construct table borders with precise widths
     local top_border="┌─${path_dashes}─┬─${raw_dashes}─┬─${opt_dashes}─┬─${savings_dashes}─┬─${lines_dashes}─┐"
     local header_sep="├─${path_dashes}─┼─${raw_dashes}─┼─${opt_dashes}─┼─${savings_dashes}─┼─${lines_dashes}─┤"
     local bottom_border="└─${path_dashes}─┴─${raw_dashes}─┴─${opt_dashes}─┴─${savings_dashes}─┴─${lines_dashes}─┘"
     
-    # Create header with proper spacing - use consistent alignment
+    # Create header with proper spacing - ensures proper column header alignment
     local header=$(printf "│ %-${path_width}s │ %-${raw_width}s │ %-${opt_width}s │ %-${savings_width}s │ %${lines_width}s │" "File Path" "Raw" "Optimized" "Savings" "Lines")
     
     # Print table header
@@ -213,13 +238,14 @@ function display_token_stats() {
             local savings_color="\033[32m" # Green
             local reset_color="\033[0m"
             
+            # IMPORTANT: These printf statements format each row in the table - DO NOT CHANGE FORMAT SPECIFIERS
             # Format and display the row with precise width control
             if [[ -t 1 ]]; then # Check if output is terminal
-                # Use color for terminal output
+                # Use color for terminal output - note the %d format for numbers
                 printf "│ %-${path_width}s │ %${raw_width}d │ %${opt_width}d │ ${savings_color}%-${savings_width}s${reset_color} │ %${lines_width}d │\n" \
                     "$file_path" "$raw_tokens" "$opt_tokens" "$savings_formatted" "$lines"
             else
-                # No color for non-terminal output
+                # No color for non-terminal output - note the %d format for numbers
                 printf "│ %-${path_width}s │ %${raw_width}d │ %${opt_width}d │ %-${savings_width}s │ %${lines_width}d │\n" \
                     "$file_path" "$raw_tokens" "$opt_tokens" "$savings_formatted" "$lines"
             fi
@@ -248,9 +274,10 @@ function display_token_stats() {
         # Format total savings with % symbol
         local total_savings_formatted="$(printf "%.1f%%" "$total_savings")"
         
-        # Print separator row with proper width
+        # Print separator row with proper width - DO NOT MODIFY THIS LINE
         echo "├─${path_dashes}─┼─${raw_dashes}─┼─${opt_dashes}─┼─${savings_dashes}─┼─${lines_dashes}─┤"
         
+        # CRITICAL: Format for totals row - DO NOT CHANGE THE FORMAT SPECIFIERS
         # Add total row with bold formatting if in terminal
         if [[ -t 1 ]]; then
             local bold="\033[1m"
@@ -263,6 +290,7 @@ function display_token_stats() {
         fi
     fi
     
+    # Print table bottom border - DO NOT MODIFY
     echo "$bottom_border"
     
     # Add note about potential savings

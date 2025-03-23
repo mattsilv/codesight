@@ -35,6 +35,8 @@ function collect_files_unified() {
         declare -n array_ref="$output_array"
         array_ref=()
     else
+        # Create an empty array with a safer approach
+        declare -a temp_array
         eval "$output_array=()"
     fi
     
@@ -307,7 +309,9 @@ EOF
                 done < "$results_file"
             else
                 while IFS= read -r file; do
-                    eval "$output_array+=(\"$file\")"
+                    # Add to array safely with properly escaped values
+                    file_escaped=$(printf '%q' "$file")
+                    eval "$output_array+=($file_escaped)"
                 done < "$results_file"
             fi
         fi
@@ -326,11 +330,13 @@ EOF
             
             # Skip if exceeds max files
             if [[ $max_files -gt 0 ]]; then
+                local current_count=0
                 if [[ "${BASH_VERSINFO[0]}" -ge 4 && "${BASH_VERSINFO[1]}" -ge 3 ]]; then
                     declare -n array_ref="$output_array"
                     current_count=${#array_ref[@]}
                 else
-                    eval "current_count=\${#$output_array[@]}"
+                    # Use a safer approach with command substitution
+                    current_count=$(eval "echo \${#$output_array[@]}")
                 fi
                 
                 if [[ $current_count -ge $max_files ]]; then
@@ -398,7 +404,9 @@ EOF
                 declare -n array_ref="$output_array"
                 array_ref+=("$file")
             else
-                eval "$output_array+=(\"$file\")"
+                # Add to array safely with properly escaped values
+                file_escaped=$(printf '%q' "$file")
+                eval "$output_array+=($file_escaped)"
             fi
             
             ((included_files++))
@@ -448,7 +456,15 @@ function collect_largest_files() {
     
     # Use unlimited max size to get all files, then we'll sort by size
     local temp_array_name="temp_files_by_size"
-    eval "$temp_array_name=()"
+    # Create a temporary array more safely
+    declare -a temp_files_by_size
+    if [[ "${BASH_VERSINFO[0]}" -ge 4 && "${BASH_VERSINFO[1]}" -ge 3 ]]; then
+        # Modern bash can use nameref
+        declare -n temp_array_ref="$temp_array_name"
+        temp_array_ref=()
+    else
+        eval "$temp_array_name=()"
+    fi
     
     # Collect all files without size limit
     collect_files_unified "$directory" "$extensions" "0" "0" \
@@ -476,20 +492,25 @@ function collect_largest_files() {
             fi
         done
     else
-        eval "for file in \"\${$temp_array_name[@]}\"; do
-            if [[ ! -f \"\$file\" ]]; then continue; fi
+        # Process files without complex eval
+        # Get the files into a new array first
+        local files_list=$(eval "printf '%s\n' \"\${$temp_array_name[@]}\"")
+        
+        # Process each file individually
+        while IFS= read -r file; do
+            if [[ ! -f "$file" ]]; then continue; fi
             
             local file_size=0
             if command -v stat &>/dev/null; then
-                file_size=\$(stat -c%s \"\$file\" 2>/dev/null || stat -f%z \"\$file\" 2>/dev/null)
+                file_size=$(stat -c%s "$file" 2>/dev/null || stat -f%z "$file" 2>/dev/null)
             else
-                file_size=\$(wc -c < \"\$file\" 2>/dev/null)
+                file_size=$(wc -c < "$file" 2>/dev/null)
             fi
             
-            if [[ -n \"\$file_size\" && \"\$file_size\" =~ ^[0-9]+\$ ]]; then
-                echo \"\$file_size \$file\" >> \"$size_file\"
+            if [[ -n "$file_size" && "$file_size" =~ ^[0-9]+$ ]]; then
+                echo "$file_size $file" >> "$size_file"
             fi
-        done"
+        done <<< "$files_list"
     fi
     
     # Sort by size (numeric) and get top N
@@ -505,17 +526,28 @@ function collect_largest_files() {
             fi
         done < <(sort -rn "$size_file" | head -n "$limit")
     else
+        # Initialize array safely
         eval "$output_array=()"
         
         # Sort by size (largest first) and get top N files
         local count=0
+        # Create a temp file with sorted results
+        local sorted_files="/tmp/codesight_sorted_files.txt"
+        sort -rn "$size_file" | head -n "$limit" > "$sorted_files"
+        
+        # Add files to array one by one
         while read -r size file; do
-            eval "$output_array+=(\"$file\")"
+            # Add to array safely with properly escaped values
+            file_escaped=$(printf '%q' "$file")
+            eval "$output_array+=($file_escaped)"
             ((count++))
             if [[ $count -ge $limit ]]; then
                 break
             fi
-        done < <(sort -rn "$size_file" | head -n "$limit")
+        done < "$sorted_files"
+        
+        # Clean up temp file
+        rm -f "$sorted_files"
     fi
     
     # Clean up

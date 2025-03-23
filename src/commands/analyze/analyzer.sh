@@ -128,11 +128,11 @@ function analyze_codebase_modular() {
         source "$SCRIPT_DIR/src/commands/visualize/tokens.sh"
         
         # Use our existing files array rather than finding files again 
-        display_token_stats "$directory" 5 "$output_file" "${files[@]}"
+        display_token_stats "$directory" 10 "$output_file" "${files[@]}"
     else
         # Display empty table
         echo ""
-        echo "🔤 Top 5 files by token count:"
+        echo "🔤 Top 10 files by token count:"
         echo "┌─────────────────────────────────────────────┬───────────┬───────────┬──────────┬───────┐"
         echo "│ File Path                                   │ Raw       │ Optimized │ Savings  │ Lines │"
         echo "├─────────────────────────────────────────────┼───────────┼───────────┼──────────┼───────┤"
