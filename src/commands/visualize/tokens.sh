@@ -116,6 +116,10 @@ function display_token_stats() {
         fi
         
         # Get file content
+        if [[ ! -f "$file" ]]; then
+            echo "❌ File not found: $file" >&2
+            continue
+        fi
         local file_lines=$(wc -l < "$file")
         local content=$(cat "$file")
         

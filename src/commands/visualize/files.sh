@@ -38,14 +38,30 @@ function display_largest_files() {
     # Execute the find command and pipe to file size calculation
     echo "   Analyzing files..."
     
+    # Create a temporary file to store valid files
+    local valid_files_list="/tmp/codesight_valid_files.txt"
+    > "$valid_files_list"
+    
+    # Check that files exist before counting lines
+    eval "$find_cmd" | while read -r file; do
+        if [[ -f "$file" ]]; then
+            echo "$file" >> "$valid_files_list"
+        else
+            echo "❌ File not found: $file" >&2
+        fi
+    done
+    
     # Get top files by line count - handle cross-platform compatibility
     if [[ "$OSTYPE" == "darwin"* ]]; then
         # macOS version
-        eval "$find_cmd" | xargs wc -l 2>/dev/null | sort -nr | head -n "$((limit+1))" > /tmp/codesight_largest_files.txt
+        cat "$valid_files_list" | xargs wc -l 2>/dev/null | sort -nr | head -n "$((limit+1))" > /tmp/codesight_largest_files.txt
     else
         # Linux/other version
-        eval "$find_cmd" | xargs wc -l 2>/dev/null | sort -nr | head -n "$((limit+1))" > /tmp/codesight_largest_files.txt
+        cat "$valid_files_list" | xargs wc -l 2>/dev/null | sort -nr | head -n "$((limit+1))" > /tmp/codesight_largest_files.txt
     fi
+    
+    # Clean up the valid files list
+    rm -f "$valid_files_list"
     
     # Check if we have results
     if [[ ! -s /tmp/codesight_largest_files.txt ]]; then

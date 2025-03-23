@@ -101,6 +101,12 @@ function collect_files_traditional() {
         fi
         echo "   Debug: Relative path: $rel_path" >&2
         
+        # Check if file exists before proceeding
+        if [[ ! -f "$file" ]]; then
+            echo "❌ File not found: $file" >&2
+            continue
+        fi
+        
         # Check excluded folders
         local excluded=false
         for folder in "${EXCLUDED_FOLDERS[@]}"; do
