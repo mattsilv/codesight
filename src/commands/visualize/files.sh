@@ -43,13 +43,14 @@ function display_largest_files() {
     > "$valid_files_list"
     
     # Check that files exist before counting lines
-    eval "$find_cmd" | while read -r file; do
+    # Using command substitution instead of eval
+    while read -r file; do
         if [[ -f "$file" ]]; then
             echo "$file" >> "$valid_files_list"
         else
             echo "❌ File not found: $file" >&2
         fi
-    done
+    done < <(eval "$find_cmd")
     
     # Get top files by line count - handle cross-platform compatibility
     if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -123,11 +124,12 @@ function display_largest_files() {
         display_path_length=$((terminal_width - 20))
     fi
     
-    # Build table top based on calculated width
-    local top_line="┌───────────────┬${"-":\0:$((display_path_length+2))}┐"
-    local header_line="│ Lines         │ File Path${" ":\0:$((display_path_length-9))}│"
-    local separator_line="├───────────────┼${"-":\0:$((display_path_length+2))}┤"
-    local bottom_line="└───────────────┴${"-":\0:$((display_path_length+2))}┘"
+    # Build table top based on calculated width - fix string repetition using printf
+    local path_dashes=$(printf '%*s' $((display_path_length+2)) '' | tr ' ' '─')
+    local top_line="┌───────────────┬${path_dashes}┐"
+    local header_line="│ Lines         │ File Path$(printf '%*s' $((display_path_length-9)) '') │"
+    local separator_line="├───────────────┼${path_dashes}┤"
+    local bottom_line="└───────────────┴${path_dashes}┘"
     
     echo "$top_line"
     echo "$header_line"
@@ -138,10 +140,32 @@ function display_largest_files() {
         local rel_path="${file_paths[$i]}"
         local line_count="${line_counts[$i]}"
         
-        # Truncate long paths if needed
+        # Truncate long paths if needed, but keep filename and parent folder intact
         if [[ ${#rel_path} -gt $display_path_length ]]; then
-            # Truncate and add ellipsis
-            rel_path="...${rel_path:(-$display_path_length+3)}"
+            # Get the filename and its parent folder
+            local filename=$(basename "$rel_path")
+            local parent_dir=$(dirname "$rel_path")
+            local parent_name=$(basename "$parent_dir")
+            
+            # If file is in root (no parent), just show filename
+            if [[ "$parent_name" == "." ]]; then
+                rel_path="$filename"
+            else
+                # Show parent/filename format
+                local combined="$parent_name/$filename"
+                
+                # If combined still too long, just show filename
+                if [[ ${#combined} -gt $display_path_length ]]; then
+                    rel_path="$filename"
+                else
+                    rel_path="$combined"
+                fi
+                
+                # Add ellipsis if we truncated the path
+                if [[ "$combined" != "$rel_path" || "$parent_dir" != "$parent_name" ]]; then
+                    rel_path=".../$rel_path"
+                fi
+            fi
         fi
         
         printf "│ %-13s │ %-${display_path_length}s │\n" "$line_count" "$rel_path"

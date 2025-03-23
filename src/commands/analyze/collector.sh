@@ -25,13 +25,25 @@ function collect_files() {
         # Use the gitignore utility
         collect_files_respecting_gitignore "$directory" "$extensions" "$files_array_name"
         total_files=${total_files:-0}  # Ensure total_files has a default value
-        eval "local included_files=\${#$files_array_name[@]}"
+        if [[ "${BASH_VERSINFO[0]}" -ge 4 && "${BASH_VERSINFO[1]}" -ge 3 ]]; then
+            declare -n array_ref="$files_array_name"
+            local included_files=${#array_ref[@]}
+        else
+            eval "local included_files=\${#$files_array_name[@]}"
+        fi
         
         # Limit to max files if needed
         if [[ $included_files -gt $max_files ]]; then
-            # Create a new array with limited entries
-            eval "local temp_files=(\"\${$files_array_name[@]:0:$max_files}\")"
-            eval "$files_array_name=(\"${temp_files[@]}\")"
+            # Create a new array with limited entries - use safer approach
+            if [[ "${BASH_VERSINFO[0]}" -ge 4 && "${BASH_VERSINFO[1]}" -ge 3 ]]; then
+                declare -n array_ref="$files_array_name"
+                local temp_files=("${array_ref[@]:0:$max_files}")
+                array_ref=("${temp_files[@]}")
+            else
+                # Fallback to eval for older bash versions
+                eval "local temp_files=(\"\${$files_array_name[@]:0:$max_files}\")"
+                eval "$files_array_name=(\"${temp_files[@]}\")"
+            fi
             included_files=$max_files
         fi
     else
@@ -186,10 +198,26 @@ EOF
             # Create array with results
             included_files=$(wc -l < "$results_file")
             
-            # Read into specified array
-            while IFS= read -r file; do
-                eval "$files_array_name+=(\"$file\")"
+            # Read into specified array - use nameref instead of eval when possible
+            if [[ "$files_array_name" == "files" ]]; then
+            # Direct assignment for common case
+                while IFS= read -r file; do
+                files+=("$file")
             done < "$results_file"
+        else
+            # Use declare -n for dynamic arrays when bash version supports it (4.3+)
+            if [[ "${BASH_VERSINFO[0]}" -ge 4 && "${BASH_VERSINFO[1]}" -ge 3 ]]; then
+                declare -n array_ref="$files_array_name"
+                while IFS= read -r file; do
+                    array_ref+=("$file")
+                done < "$results_file"
+            else
+                # Fallback to eval for older bash versions
+                while IFS= read -r file; do
+                    eval "$files_array_name+=(\"$file\")"
+                done < "$results_file"
+            fi
+        fi
         fi
         
         # Clean up temporary files
@@ -204,7 +232,13 @@ EOF
             fi
             
             # Skip if exceeds max files
-            eval "local current_count=\${#$files_array_name[@]}"
+            local current_count
+            if [[ "${BASH_VERSINFO[0]}" -ge 4 && "${BASH_VERSINFO[1]}" -ge 3 ]]; then
+                declare -n array_ref="$files_array_name"
+                current_count=${#array_ref[@]}
+            else
+                eval "current_count=\${#$files_array_name[@]}"
+            fi
             if [[ $current_count -ge $max_files ]]; then
                 if [[ -n "$CODESIGHT_VERBOSE" ]]; then
                     echo "   Debug: Skipping - max files exceeded" >&2
@@ -312,13 +346,18 @@ EOF
                 echo "   Debug: Adding file to array: $file with array name $files_array_name" >&2
             fi
             
-            # Direct approach without eval
+            # Safer approach using nameref when possible
             case "$files_array_name" in
                 files)
                     files+=("$file")
                     ;;
                 *)
-                    eval "$files_array_name+=(\"$file\")"
+                    if [[ "${BASH_VERSINFO[0]}" -ge 4 && "${BASH_VERSINFO[1]}" -ge 3 ]]; then
+                        declare -n array_ref="$files_array_name"
+                        array_ref+=("$file")
+                    else
+                        eval "$files_array_name+=(\"$file\")"
+                    fi
                     ;;
             esac
             
@@ -326,7 +365,13 @@ EOF
             
             # Debug - check current array size
             if [[ -n "$CODESIGHT_VERBOSE" ]]; then
-                eval "local current_array_size=\${#$files_array_name[@]}"
+                local current_array_size
+                if [[ "${BASH_VERSINFO[0]}" -ge 4 && "${BASH_VERSINFO[1]}" -ge 3 ]]; then
+                    declare -n array_ref="$files_array_name"
+                    current_array_size=${#array_ref[@]}
+                else
+                    eval "local current_array_size=\${#$files_array_name[@]}"
+                fi
                 echo "   Debug: Current array size: $current_array_size" >&2
             fi
             

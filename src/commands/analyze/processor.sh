@@ -40,9 +40,17 @@ function process_file() {
     local file_lines=$(wc -l < "$file")
     local file_chars=$(wc -c < "$file")
     
-    # Update original stats
-    eval "$ref_original_lines+=($file_lines)"
-    eval "$ref_original_chars+=($file_chars)"
+    # Update original stats - safer approach with nameref when possible
+    if [[ "${BASH_VERSINFO[0]}" -ge 4 && "${BASH_VERSINFO[1]}" -ge 3 ]]; then
+        declare -n original_lines_ref="$ref_original_lines"
+        declare -n original_chars_ref="$ref_original_chars"
+        original_lines_ref+=($file_lines)
+        original_chars_ref+=($file_chars)
+    else
+        # Fallback to eval for older bash versions
+        eval "$ref_original_lines+=($file_lines)"
+        eval "$ref_original_chars+=($file_chars)"
+    fi
     
     # Process file content
     if [[ $file_lines -gt $max_lines ]]; then
@@ -61,9 +69,20 @@ function process_file() {
     local processed_chars=$(echo "$cleaned_content" | wc -c)
     local processed_words=$(echo "$cleaned_content" | wc -w)
     
-    eval "$ref_total_lines+=($processed_lines)"
-    eval "$ref_total_chars+=($processed_chars)"
-    eval "$ref_total_words+=($processed_words)"
+    # Safer approach with nameref when possible
+    if [[ "${BASH_VERSINFO[0]}" -ge 4 && "${BASH_VERSINFO[1]}" -ge 3 ]]; then
+        declare -n total_lines_ref="$ref_total_lines"
+        declare -n total_chars_ref="$ref_total_chars"
+        declare -n total_words_ref="$ref_total_words"
+        total_lines_ref+=($processed_lines)
+        total_chars_ref+=($processed_chars)
+        total_words_ref+=($processed_words)
+    else
+        # Fallback to eval for older bash versions
+        eval "$ref_total_lines+=($processed_lines)"
+        eval "$ref_total_chars+=($processed_chars)"
+        eval "$ref_total_words+=($processed_words)"
+    fi
     
     # Write to output file based on configuration
     if [[ "$ultra_compact" == "true" ]]; then
@@ -113,8 +132,15 @@ function process_files() {
     local original_chars=0
     local original_lines=0
     
-    # Get the files array
-    eval "local files=(\"\${$files_array_name[@]}\")"
+    # Get the files array - safer approach with nameref
+    local files
+    if [[ "${BASH_VERSINFO[0]}" -ge 4 && "${BASH_VERSINFO[1]}" -ge 3 ]]; then
+        declare -n files_ref="$files_array_name"
+        files=("${files_ref[@]}")
+    else
+        # Fallback to eval for older bash versions
+        eval "files=(\"\${$files_array_name[@]}\")" 
+    fi
     local file_counter=0
     
     if [[ "$use_parallel" == "true" ]]; then

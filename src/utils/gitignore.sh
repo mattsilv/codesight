@@ -120,8 +120,14 @@ function collect_files_respecting_gitignore() {
     
     echo "   Debug: Found ${#gitignore_files[@]} gitignore files" >&2
     
-    # Initialize output array
-    eval "$files_array_name=()"
+    # Initialize output array - safer approach with nameref
+    if [[ "${BASH_VERSINFO[0]}" -ge 4 && "${BASH_VERSINFO[1]}" -ge 3 ]]; then
+        declare -n array_ref="$files_array_name"
+        array_ref=()
+    else
+        # Fallback to eval for older bash versions
+        eval "$files_array_name=()"
+    fi
     
     # Filter files based on .gitignore patterns
     for file in "${all_files[@]}"; do
@@ -208,13 +214,28 @@ function collect_files_respecting_gitignore() {
         
         # Add to result array if not ignored
         if [[ "$ignored" == "false" ]]; then
-            eval "$files_array_name+=(\"$file\")"
+            # Safer approach with nameref when possible
+            if [[ "${BASH_VERSINFO[0]}" -ge 4 && "${BASH_VERSINFO[1]}" -ge 3 ]]; then
+                declare -n array_ref="$files_array_name"
+                array_ref+=("$file")
+            else
+                # Fallback to eval for older bash versions
+                eval "$files_array_name+=(\"$file\")"
+            fi
         fi
     done
     
     # Get total files count for reference
     local total_files=${#all_files[@]}
-    eval "local included_files=\${#$files_array_name[@]}"
+    # Get array size - safer approach with nameref
+    local included_files
+    if [[ "${BASH_VERSINFO[0]}" -ge 4 && "${BASH_VERSINFO[1]}" -ge 3 ]]; then
+        declare -n array_ref="$files_array_name"
+        included_files=${#array_ref[@]}
+    else
+        # Fallback to eval for older bash versions
+        eval "included_files=\${#$files_array_name[@]}"
+    fi
     
     # Return the total file count through a global variable
     total_files=$total_files
