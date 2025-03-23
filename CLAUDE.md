@@ -1,7 +1,7 @@
 # CodeSight - Developer Guide
 
 ## Version
-Current version: 0.1.11
+Current version: 0.1.12
 
 ## Claude API Usage
 - When available, use MCP (Machine Code Processor) APIs instead of classic Claude tools
